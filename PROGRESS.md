@@ -73,3 +73,8 @@ Running log, one entry per phase. "Verified" = the exact command/output that pro
 - **Google Sign-In (web)**: GIS button on the login card (`GoogleSignInButton.tsx`, no page reload, theme-aware), `loginWithGoogle` in `AuthContext`, visible only when `VITE_GOOGLE_CLIENT_ID` is set; `web/.env.example` added.
 - Impeccable detector on the rebuilt source: `npx impeccable detect web/src` → **0 findings** (exit 0).
 - Note: dev DB contains a test employee "Chaitanya Chavan (EMP - 005)" created during dashboard testing — deactivate via Employees page if unwanted.
+
+## Google OAuth client configured (live)
+- User created the OAuth client in Google Cloud Console ("Relay Attendance" project); client ID wired into `backend/.env` (`GOOGLE_CLIENT_IDS`), `web/.env.local` (`VITE_GOOGLE_CLIENT_ID`), `mobile/.env` (`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`); client secret not used by this integration (ID-token flow).
+- All three services restarted. **Verified:** `POST /api/auth/google` now returns `401 GOOGLE_TOKEN_INVALID` for a garbage token (verifier active — no longer `503 GOOGLE_DISABLED`); client ID inlined in the served Android bundle (Metro) and in the Vite-served `GoogleSignInButton` module. Button visibility on page validated by config presence (visual screenshot skipped — user's Chrome profile locked the headless capture).
+- Remaining (user-side): add Google accounts as **test users** on the consent screen; click "Sign in with Google" on :5173 / in Expo Go to complete the live sign-in.
