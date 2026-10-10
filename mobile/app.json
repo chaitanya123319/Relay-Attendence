@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "RELAY Attendance",
+    "slug": "relay-attendance-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "local.relay.attendance",
+      "infoPlist": {
+        "NSCameraUsageDescription": "RELAY Attendance captures a live photo as proof of presence when you check in or out.",
+        "NSLocationWhenInUseUsageDescription": "RELAY Attendance uses your location to verify you are inside your project site's geofence."
+      }
+    },
+    "android": {
+      "package": "local.relay.attendance",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1220",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "RELAY Attendance captures a live photo as proof of presence when you check in or out."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "RELAY Attendance uses your location to verify you are inside your project site's geofence."
+        }
+      ],
+      "expo-notifications",
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}

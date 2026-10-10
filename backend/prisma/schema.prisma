@@ -1,0 +1,243 @@
+// RELAY Attendance — Prisma schema.
+// Default datasource is SQLite for zero-install local dev/test.
+// The Docker/Postgres recipe flips it with `node scripts/use-provider.js postgresql`
+// before `prisma generate` (see DECISIONS.md #1). All field types are portable.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // datasource-provider
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  employeeId   String   @unique
+  name         String
+  phone        String?
+  passwordHash String
+  // ADMIN | HR | MANAGER | ENGINEER — String because SQLite has no enums;
+  // enforced by zod at the API edge and TS unions in code.
+  role         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignments   SiteAssignment[]
+  attendance    AttendanceRecord[]
+  leaveRequests LeaveRequest[]  @relation("Requester")
+  decisions     LeaveRequest[]  @relation("Decider")
+  balances      LeaveBalance[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
+  pushTokens    PushToken[]
+
+  @@index([role, isActive])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String // ios | android
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProjectSite {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  address            String
+  lat                Float
+  lng                Float
+  radiusM            Int      @default(150)
+  outOfRangeBehavior String   @default("REJECT") // REJECT | FLAG
+  shiftStart         String   @default("09:00") // HH:mm, in COMPANY_TZ
+  shiftEnd           String   @default("18:00")
+  lateGraceMinutes   Int      @default(15)
+  halfDayMinutes     Int      @default(240)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  assignments SiteAssignment[]
+  attendance  AttendanceRecord[]
+}
+
+model SiteAssignment {
+  id           String    @id @default(cuid())
+  userId       String
+  siteId       String
+  assignedById String?
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  endedAt      DateTime?
+
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site ProjectSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, active])
+  @@index([userId, active])
+}
+
+model AttendanceRecord {
+  id   String @id @default(cuid())
+  userId String
+  siteId String
+  date   String // YYYY-MM-DD in COMPANY_TZ — the business key
+
+  checkInTime  DateTime
+  checkOutTime DateTime?
+
+  checkInLat       Float
+  checkInLng       Float
+  checkInAccuracy  Float
+  checkInDistanceM Float
+  checkInPhotoPath String
+  checkInPhotoHash String
+
+  checkOutLat       Float?
+  checkOutLng       Float?
+  checkOutAccuracy  Float?
+  checkOutDistanceM Float?
+  checkOutPhotoPath String?
+  checkOutPhotoHash String?
+
+  status        String  @default("PRESENT") // PRESENT | LATE | HALF_DAY | INCOMPLETE
+  flags         String  @default("[]") // JSON array: OUT_OF_RANGE, TIME_DRIFT, ...
+  workedMinutes Int?
+  clientDriftSeconds Int?
+  deviceId      String?
+  checkInIp     String?
+  checkOutIp    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site ProjectSite @relation(fields: [siteId], references: [id])
+
+  @@unique([userId, date])
+  @@index([siteId, date])
+  @@index([date])
+}
+
+model LeaveType {
+  id                 String  @id @default(cuid())
+  code               String  @unique // CASUAL | SICK | EARNED | ...
+  name               String
+  annualQuota        Float   @default(0)
+  paid               Boolean @default(true)
+  requiresDocument   Boolean @default(false)
+  minNoticeDays      Int     @default(0) // earliest allowed fromDate = today - minNoticeDays
+  maxConsecutiveDays Int? // null = unlimited
+  allowHalfDay       Boolean @default(true)
+  isActive           Boolean @default(true)
+  createdAt          DateTime @default(now())
+
+  requests LeaveRequest[]
+  balances LeaveBalance[]
+}
+
+model LeaveBalance {
+  id          String @id @default(cuid())
+  userId      String
+  leaveTypeId String
+  year        Int
+  allocated   Float  @default(0)
+  used        Float  @default(0) // approved days only
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, leaveTypeId, year])
+  @@index([year])
+}
+
+model LeaveRequest {
+  id            String  @id @default(cuid())
+  userId        String
+  leaveTypeId   String
+  fromDate      String // YYYY-MM-DD
+  toDate        String // YYYY-MM-DD
+  days          Float
+  isHalfDay     Boolean @default(false)
+  halfDayPeriod String? // AM | PM
+  reason        String
+  status        String  @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  decidedById   String?
+  decisionComment String?
+  decidedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user      User       @relation("Requester", fields: [userId], references: [id], onDelete: Cascade)
+  decidedBy User?      @relation("Decider", fields: [decidedById], references: [id])
+  leaveType LeaveType  @relation(fields: [leaveTypeId], references: [id])
+  documents LeaveDocument[]
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+model LeaveDocument {
+  id           String   @id @default(cuid())
+  requestId    String
+  path         String
+  originalName String
+  mime         String
+  size         Int
+  createdAt    DateTime @default(now())
+
+  request LeaveRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  type      String // LEAVE_SUBMITTED | LEAVE_APPROVED | LEAVE_REJECTED | LEAVE_CANCELLED | ATTENDANCE_FLAGGED
+  data      String? // JSON payload
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      String? // JSON
+  ip        String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([action, createdAt])
+  @@index([entity, entityId])
+}

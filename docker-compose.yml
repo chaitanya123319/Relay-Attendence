@@ -1,0 +1,59 @@
+# RELAY Attendance — Docker Compose (PostgreSQL + API).
+#
+#   docker compose up --build          # API on http://localhost:4000
+#
+# Ports can be overridden:  BACKEND_PORT=4005 DB_PORT=5434 docker compose up --build
+# JWT secrets: set real ones via a root .env file or environment for anything
+# beyond local development. The defaults below are DEV-ONLY placeholders.
+#
+# The API container flips the Prisma provider to postgresql at build time,
+# applies the schema with `prisma db push`, seeds demo data when the database
+# is empty, and serves on port 4000 (see backend/scripts/docker-start.js).
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: relay
+      POSTGRES_PASSWORD: relay_dev_password
+      POSTGRES_DB: relay
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relay -d relay"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - relay_pgdata:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5433}:5432"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://relay:relay_dev_password@db:5432/relay?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-relay-dev-only-access-secret-please-override-0123456789}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-relay-dev-only-refresh-secret-please-override-0123456789}
+      ACCESS_TOKEN_TTL_MIN: 15
+      REFRESH_TOKEN_TTL_DAYS: 7
+      COMPANY_TZ: Asia/Kolkata
+      STORAGE_DIR: /data/storage
+      GPS_ACCURACY_MAX_M: 50
+      TIME_DRIFT_MAX_S: 600
+      # Demo box: allows repeated smoke-script runs. Use a low value in production.
+      LOGIN_RATE_LIMIT_MAX: 1000
+      CORS_ORIGIN: "*"
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    volumes:
+      - relay_storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  relay_pgdata:
+  relay_storage:

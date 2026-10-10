@@ -1,0 +1,36 @@
+# Dependencies & builds
+node_modules/
+dist/
+coverage/
+
+# Secrets — never commit real env files (.env.example is the tracked template)
+.env
+*.local
+
+# Dev databases
+*.db
+*.db-journal
+prisma/dev.db
+prisma/test.db
+
+# E2E smoke script temp files
+.e2e-photo-*.png
+.e2e-report-*.pdf
+
+# Uploaded files (dev storage)
+backend/storage/
+backend/.test-storage/
+
+# Expo
+mobile/.expo/
+mobile/dist/
+mobile/node_modules/
+
+# Web
+web/dist/
+web/node_modules/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
