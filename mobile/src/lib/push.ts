@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { notificationsApi } from '../api/endpoints';
+import { getNotifications } from './expoNotifications';
 
 export type PushRegistrationResult = 'registered' | 'denied' | 'skipped';
 
@@ -15,6 +15,9 @@ export type PushRegistrationResult = 'registered' | 'denied' | 'skipped';
  */
 export async function registerPushToken(): Promise<PushRegistrationResult> {
   try {
+    const Notifications = await getNotifications();
+    // Expo Go on Android (SDK 53+): remote push was removed — skip silently.
+    if (!Notifications) return 'skipped';
     const current = await Notifications.getPermissionsAsync();
     let granted = current.granted;
     if (!granted && current.canAskAgain) {

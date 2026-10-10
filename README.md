@@ -106,6 +106,7 @@ npx expo start        # then press a (Android), i (iOS simulator) or scan with E
   - Physical phone: `EXPO_PUBLIC_API_URL=http://<your-PC-LAN-IP>:4000` (phone and PC on the same network).
   - Android emulator: `EXPO_PUBLIC_API_URL=http://10.0.2.2:4000`.
 - Flows: login → Check-In/Check-Out with live camera + GPS (shows server distance / rejection reasons) → history → monthly summary → apply leave (with optional document) → balances → status tracking → notifications → logout.
+- **Expo Go note (Android, SDK 53+)**: remote push notifications were removed from Expo Go on Android — the app detects this and skips push registration so it runs fine in Expo Go (the in-app notification list still works). Push notifications require a development build or a native build (`npx expo run:android` / EAS); `expo-notifications` is deliberately lazy-loaded (`src/lib/expoNotifications.ts`) because an eager import crashes Expo Go Android at startup.
 
 ## Web dashboard (manager / HR / admin)
 

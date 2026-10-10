@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import * as Notifications from 'expo-notifications';
 import { notificationsApi } from '../api/endpoints';
+import { getNotifications } from '../lib/expoNotifications';
 import { useAuth } from './AuthContext';
 
 interface NotificationsContextValue {
@@ -36,10 +36,17 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     }
     void refreshUnread();
     const timer = setInterval(() => void refreshUnread(), 60000);
-    const sub = Notifications.addNotificationReceivedListener(() => void refreshUnread());
+    // Listener is best-effort: expo-notifications isn't loaded in Expo Go on Android.
+    let sub: { remove: () => void } | null = null;
+    let cancelled = false;
+    void getNotifications().then((N) => {
+      if (cancelled || !N) return;
+      sub = N.addNotificationReceivedListener(() => void refreshUnread());
+    });
     return () => {
+      cancelled = true;
       clearInterval(timer);
-      sub.remove();
+      sub?.remove();
     };
   }, [status, refreshUnread]);
 
