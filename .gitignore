@@ -17,6 +17,16 @@ prisma/test.db
 .e2e-photo-*.png
 .e2e-report-*.pdf
 
+# Impeccable design-skill harness installs (recreate with `npx impeccable install`)
+.agent/
+.claude/
+.cursor/
+.gemini/
+.hermes/
+.github/skills/impeccable/
+.github/agents/impeccable-*.agent.md
+.github/hooks/
+
 # Uploaded files (dev storage)
 backend/storage/
 backend/.test-storage/
