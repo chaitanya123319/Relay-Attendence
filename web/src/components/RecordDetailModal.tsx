@@ -1,40 +1,58 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Camera, Hash, MapPin } from 'lucide-react'
-import { api, getErrorMessage } from '../lib/api'
-import type { AttendanceRecordDetail, PhotoSide } from '../lib/types'
-import { fmtDate, fmtMinutes, fmtTime } from '../lib/utils'
-import { AuthedImage } from './SignedMedia'
-import { ErrorBanner, FlagChip, Modal, Spinner, StatusChip } from './ui'
+import { api, getErrorMessage } from '@/lib/api'
+import type { AttendanceRecordDetail, PhotoSide } from '@/lib/types'
+import { fmtDate, fmtMinutes, fmtTime } from '@/lib/utils'
+import { FlagBadge, StatusBadge } from '@/components/badges'
+import { AuthedImage } from '@/components/SignedMedia'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
+
+/** Distances read in metres under 1 km, kilometres (2 dp) beyond — DESIGN.md. */
+function fmtDistance(meters: number | null): string {
+  if (meters === null) return '—'
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(2)} km`
+}
 
 function PhotoCard({ side, photo }: { side: string; photo: PhotoSide | null }) {
   if (!photo) {
     return (
-      <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400">
-        <Camera className="h-5 w-5" />
-        No {side.toLowerCase()} photo
+      <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-muted-foreground">
+        <Camera className="size-5" aria-hidden />
+        <span className="text-[13px]">No {side.toLowerCase()} photo</span>
       </div>
     )
   }
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200">
+    <div className="overflow-hidden rounded-lg border">
       <AuthedImage path={photo.photoEndpoint} alt={`${side} photo`} className="h-56 w-full" />
-      <div className="space-y-1.5 p-3 text-xs text-slate-600">
-        <div className="text-sm font-medium text-slate-800">
+      <div className="space-y-1.5 p-3 text-xs text-muted-foreground">
+        <div className="tnum text-sm font-medium text-foreground">
           {side} · {fmtTime(photo.time)}
         </div>
         <div className="flex items-center gap-1.5">
-          <MapPin className="h-3 w-3 shrink-0" />
-          {photo.lat.toFixed(5)}, {photo.lng.toFixed(5)} · ±{Math.round(photo.accuracy)} m
+          <MapPin className="size-3 shrink-0" aria-hidden />
+          <span className="tnum">
+            {photo.lat.toFixed(5)}, {photo.lng.toFixed(5)} · ±{Math.round(photo.accuracy)} m
+          </span>
         </div>
         <div>
           Distance from site:{' '}
-          <span className="font-medium text-slate-700">
-            {photo.distanceMeters === null ? '—' : `${photo.distanceMeters} m`}
+          <span className="tnum font-medium text-foreground">
+            {fmtDistance(photo.distanceMeters)}
           </span>
         </div>
         {photo.photoHash && (
           <div className="flex items-start gap-1.5">
-            <Hash className="mt-0.5 h-3 w-3 shrink-0" />
+            <Hash className="mt-0.5 size-3 shrink-0" aria-hidden />
             <span className="break-all font-mono text-[10px] leading-tight">{photo.photoHash}</span>
           </div>
         )}
@@ -43,18 +61,18 @@ function PhotoCard({ side, photo }: { side: string; photo: PhotoSide | null }) {
   )
 }
 
-function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Stat({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div>
-      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</div>
-      <div className={mono ? 'break-all font-mono text-xs text-slate-800' : 'text-sm text-slate-800'}>
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className={mono ? 'break-all font-mono text-xs' : 'tnum text-sm font-medium'}>
         {value}
-      </div>
+      </dd>
     </div>
   )
 }
 
-/** Record detail modal with signed-URL photos, telemetry and hash evidence. */
+/** Record detail dialog with signed-URL photos, telemetry and hash evidence. */
 export default function RecordDetailModal({
   recordId,
   onClose,
@@ -86,46 +104,76 @@ export default function RecordDetailModal({
   }, [load])
 
   return (
-    <Modal
+    <Dialog
       open={recordId !== null}
-      onClose={onClose}
-      title="Attendance record"
-      subtitle={detail ? `${detail.user?.name ?? ''} · ${detail.user?.employeeId ?? ''} · ${fmtDate(detail.date)}` : undefined}
-      size="xl"
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
     >
-      {loading && (
-        <div className="flex justify-center py-10">
-          <Spinner className="h-6 w-6 text-indigo-600" />
-        </div>
-      )}
-      {error && !loading && <ErrorBanner message={error} onRetry={() => void load()} />}
-      {detail && !loading && (
-        <div className="space-y-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusChip status={detail.status} />
-            {detail.flags.map((flag) => (
-              <FlagChip key={flag} flag={flag} />
-            ))}
-          </div>
+      <DialogContent className="thin-scroll max-h-[90svh] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Attendance record</DialogTitle>
+          <DialogDescription>
+            {detail
+              ? `${detail.user?.name ?? ''} · ${detail.user?.employeeId ?? ''} · ${fmtDate(detail.date)}`
+              : 'Signed-URL photos, GPS telemetry and photo hash evidence.'}
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <PhotoCard side="Check-in" photo={detail.checkIn} />
-            <PhotoCard side="Check-out" photo={detail.checkOut} />
+        {loading && (
+          <div className="space-y-4">
+            <Skeleton className="h-5 w-48 rounded-full" />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Skeleton className="h-56 rounded-lg" />
+              <Skeleton className="h-56 rounded-lg" />
+            </div>
+            <Skeleton className="h-24 rounded-lg" />
           </div>
+        )}
 
-          <div className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
-            <Stat label="Worked" value={fmtMinutes(detail.workedMinutes)} />
-            <Stat label="Check-in time" value={fmtTime(detail.checkIn.time)} />
-            <Stat label="Check-out time" value={detail.checkOut ? fmtTime(detail.checkOut.time) : '—'} />
-            <Stat label="Site" value={detail.site?.name ?? '—'} />
-            <Stat
-              label="Client clock drift"
-              value={detail.clientDriftSeconds === null ? '—' : `${detail.clientDriftSeconds}s`}
-            />
-            <Stat label="Device" value={detail.deviceId} mono />
+        {error && !loading && (
+          <Alert variant="destructive">
+            <AlertTitle>Couldn&apos;t load this record</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+            <AlertAction>
+              <Button size="xs" variant="outline" onClick={() => void load()}>
+                Retry
+              </Button>
+            </AlertAction>
+          </Alert>
+        )}
+
+        {detail && !loading && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={detail.status} />
+              {detail.flags.map((flag) => (
+                <FlagBadge key={flag} flag={flag} />
+              ))}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <PhotoCard side="Check-in" photo={detail.checkIn} />
+              <PhotoCard side="Check-out" photo={detail.checkOut} />
+            </div>
+
+            <dl className="grid gap-4 rounded-lg border bg-muted/40 p-4 sm:grid-cols-3">
+              <Stat label="Worked" value={fmtMinutes(detail.workedMinutes)} />
+              <Stat label="Check-in time" value={fmtTime(detail.checkIn.time)} />
+              <Stat
+                label="Check-out time"
+                value={detail.checkOut ? fmtTime(detail.checkOut.time) : '—'}
+              />
+              <Stat label="Site" value={detail.site?.name ?? '—'} />
+              <Stat
+                label="Client clock drift"
+                value={detail.clientDriftSeconds === null ? '—' : `${detail.clientDriftSeconds}s`}
+              />
+              <Stat label="Device" value={detail.deviceId} mono />
+            </dl>
           </div>
-        </div>
-      )}
-    </Modal>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

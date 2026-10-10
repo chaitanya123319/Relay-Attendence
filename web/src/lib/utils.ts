@@ -1,7 +1,6 @@
-import type { Role } from './types'
+export { cn } from "cn"
 
-export const cn = (...parts: Array<string | false | null | undefined>): string =>
-  parts.filter(Boolean).join(' ')
+import type { Role } from './types'
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 
@@ -97,40 +96,41 @@ export interface ChipMeta {
 
 const chip = (cls: string, label: string): ChipMeta => ({ label, cls })
 
+/** Badge tint classes; dark variants included so chips read on both themes. */
 export const STATUS_META: Record<string, ChipMeta> = {
-  PRESENT: chip('border-emerald-200 bg-emerald-50 text-emerald-700', 'Present'),
-  LATE: chip('border-amber-200 bg-amber-50 text-amber-700', 'Late'),
-  HALF_DAY: chip('border-sky-200 bg-sky-50 text-sky-700', 'Half day'),
-  INCOMPLETE: chip('border-orange-200 bg-orange-50 text-orange-700', 'Incomplete'),
-  NOT_CHECKED_IN: chip('border-slate-200 bg-slate-50 text-slate-600', 'Not checked in'),
-  ABSENT: chip('border-rose-200 bg-rose-50 text-rose-700', 'Absent'),
-  ON_LEAVE: chip('border-violet-200 bg-violet-50 text-violet-700', 'On leave'),
-  UPCOMING: chip('border-slate-200 bg-slate-50 text-slate-500', 'Upcoming'),
-  WEEKLY_OFF: chip('border-slate-200 bg-slate-50 text-slate-500', 'Weekly off'),
-  PENDING: chip('border-amber-200 bg-amber-50 text-amber-700', 'Pending'),
-  APPROVED: chip('border-emerald-200 bg-emerald-50 text-emerald-700', 'Approved'),
-  REJECTED: chip('border-rose-200 bg-rose-50 text-rose-700', 'Rejected'),
-  CANCELLED: chip('border-slate-200 bg-slate-100 text-slate-500', 'Cancelled'),
+  PRESENT: chip('border-emerald-600/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', 'Present'),
+  LATE: chip('border-amber-600/20 bg-amber-500/10 text-amber-700 dark:text-amber-400', 'Late'),
+  HALF_DAY: chip('border-sky-600/20 bg-sky-500/10 text-sky-700 dark:text-sky-400', 'Half day'),
+  INCOMPLETE: chip('border-orange-600/20 bg-orange-500/10 text-orange-700 dark:text-orange-400', 'Incomplete'),
+  NOT_CHECKED_IN: chip('border-border bg-muted text-muted-foreground', 'Not checked in'),
+  ABSENT: chip('border-rose-600/20 bg-rose-500/10 text-rose-700 dark:text-rose-400', 'Absent'),
+  ON_LEAVE: chip('border-violet-600/20 bg-violet-500/10 text-violet-700 dark:text-violet-400', 'On leave'),
+  UPCOMING: chip('border-border bg-muted text-muted-foreground', 'Upcoming'),
+  WEEKLY_OFF: chip('border-border bg-muted text-muted-foreground', 'Weekly off'),
+  PENDING: chip('border-amber-600/20 bg-amber-500/10 text-amber-700 dark:text-amber-400', 'Pending'),
+  APPROVED: chip('border-emerald-600/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', 'Approved'),
+  REJECTED: chip('border-rose-600/20 bg-rose-500/10 text-rose-700 dark:text-rose-400', 'Rejected'),
+  CANCELLED: chip('border-border bg-muted text-muted-foreground', 'Cancelled'),
 }
 
 export const FLAG_META: Record<string, ChipMeta> = {
-  OUT_OF_RANGE: chip('border-rose-200 bg-rose-50 text-rose-700', 'Out of range'),
-  TIME_DRIFT: chip('border-amber-200 bg-amber-50 text-amber-700', 'Time drift'),
+  OUT_OF_RANGE: chip('border-rose-600/20 bg-rose-500/10 text-rose-700 dark:text-rose-400', 'Out of range'),
+  TIME_DRIFT: chip('border-amber-600/20 bg-amber-500/10 text-amber-700 dark:text-amber-400', 'Time drift'),
 }
 
 export function statusMeta(status: string): ChipMeta {
-  return STATUS_META[status] ?? chip('border-slate-200 bg-slate-50 text-slate-600', status)
+  return STATUS_META[status] ?? chip('border-border bg-muted text-muted-foreground', status)
 }
 
 export function flagMeta(flag: string): ChipMeta {
-  return FLAG_META[flag] ?? chip('border-slate-200 bg-slate-50 text-slate-600', flag)
+  return FLAG_META[flag] ?? chip('border-border bg-muted text-muted-foreground', flag)
 }
 
 export const ROLE_META: Record<Role, ChipMeta> = {
-  ADMIN: chip('border-violet-200 bg-violet-50 text-violet-700', 'Admin'),
-  HR: chip('border-sky-200 bg-sky-50 text-sky-700', 'HR'),
-  MANAGER: chip('border-indigo-200 bg-indigo-50 text-indigo-700', 'Manager'),
-  ENGINEER: chip('border-emerald-200 bg-emerald-50 text-emerald-700', 'Engineer'),
+  ADMIN: chip('border-violet-600/20 bg-violet-500/10 text-violet-700 dark:text-violet-400', 'Admin'),
+  HR: chip('border-sky-600/20 bg-sky-500/10 text-sky-700 dark:text-sky-400', 'HR'),
+  MANAGER: chip('border-indigo-600/20 bg-indigo-500/10 text-indigo-700 dark:text-indigo-400', 'Manager'),
+  ENGINEER: chip('border-emerald-600/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', 'Engineer'),
 }
 
 /** Landing route per role. */

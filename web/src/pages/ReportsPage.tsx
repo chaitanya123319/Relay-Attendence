@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarDays, FileSpreadsheet, FileText, RefreshCw } from 'lucide-react'
+import {
+  CalendarDays,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -10,28 +16,54 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { useAuth } from '../auth/AuthContext'
+import { useAuth } from '@/auth/AuthContext'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
-  btnOutline,
-  btnPrimary,
-  cardCls,
-  EmptyState,
-  ErrorBanner,
-  PageHeader,
-  Spinner,
-  inputCls,
-} from '../components/ui'
-import { api, downloadReport, getErrorMessage } from '../lib/api'
-import type { ReportJson, Site } from '../lib/types'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { api, downloadReport, getErrorMessage } from '@/lib/api'
+import type { ReportJson, Site } from '@/lib/types'
 import {
   cn,
   currentMonth,
   firstDayOfMonth,
   lastDayOfMonth,
   monthLabel,
-} from '../lib/utils'
+} from '@/lib/utils'
 
 type Tab = 'attendance' | 'leave'
+
+/** Recharts renders SVG attributes — tokens resolve there exactly like in CSS. */
+const CHART_TOOLTIP = {
+  contentStyle: {
+    backgroundColor: 'var(--popover)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--popover-foreground)',
+    fontSize: 12,
+  },
+  labelStyle: { color: 'var(--popover-foreground)', fontWeight: 500 },
+  itemStyle: { color: 'var(--muted-foreground)' },
+  cursor: { fill: 'var(--muted)', fillOpacity: 0.4 },
+} as const
 
 export default function ReportsPage() {
   const { user } = useAuth()
@@ -127,218 +159,230 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Reports"
-        subtitle="Monthly attendance and leave exports — JSON preview, CSV and PDF downloads"
-        actions={
-          <>
-            <button
-              type="button"
-              className={btnOutline}
-              onClick={() => void load()}
-              disabled={loading}
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
-            <button
-              type="button"
-              className={btnOutline}
-              onClick={() => void download('csv')}
-              disabled={downloading !== null}
-            >
-              {downloading === 'csv' ? <Spinner /> : <FileSpreadsheet className="h-4 w-4" />}
-              Download CSV
-            </button>
-            <button
-              type="button"
-              className={btnPrimary}
-              onClick={() => void download('pdf')}
-              disabled={downloading !== null}
-            >
-              {downloading === 'pdf' ? <Spinner /> : <FileText className="h-4 w-4" />}
-              Download PDF
-            </button>
-          </>
-        }
-      />
-
-      {error && (
-        <div className="mb-4">
-          <ErrorBanner message={error} onRetry={() => void load()} />
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Reports</h1>
+          <p className="text-[13px] text-muted-foreground">
+            Monthly attendance and leave exports — JSON preview, CSV and PDF downloads
+          </p>
         </div>
-      )}
-
-      <div className={cn(cardCls, 'mb-5 p-4')}>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-wrap gap-1.5 pb-1">
-            {(['attendance', 'leave'] as Tab[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium',
-                  tab === t
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
-                )}
-              >
-                {t === 'attendance' ? (
-                  <CalendarDays className="h-4 w-4" />
-                ) : (
-                  <FileText className="h-4 w-4" />
-                )}
-                {t === 'attendance' ? 'Attendance' : 'Leave'}
-              </button>
-            ))}
-          </div>
-
-          {tab === 'attendance' ? (
-            <>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Month
-                </span>
-                <input
-                  type="month"
-                  className={cn(inputCls, 'w-44')}
-                  value={month}
-                  onChange={(e) => setMonth(e.target.value || currentMonth())}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Site
-                </span>
-                <select
-                  className={cn(inputCls, 'w-56')}
-                  value={siteId}
-                  onChange={(e) => setSiteId(e.target.value)}
-                >
-                  <option value="">All sites</option>
-                  {sites.map((site) => (
-                    <option key={site.id} value={site.id}>
-                      {site.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          ) : (
-            <>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                  From
-                </span>
-                <input
-                  type="date"
-                  className={cn(inputCls, 'w-44')}
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value || from)}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                  To
-                </span>
-                <input
-                  type="date"
-                  className={cn(inputCls, 'w-44')}
-                  value={to}
-                  onChange={(e) => setTo(e.target.value || to)}
-                />
-              </label>
-            </>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => void load()} disabled={loading}>
+            <RefreshCw className="size-4" aria-hidden />
+            Refresh
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void download('csv')}
+            disabled={downloading !== null}
+          >
+            {downloading === 'csv' ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <FileSpreadsheet className="size-4" aria-hidden />
+            )}
+            Download CSV
+          </Button>
+          <Button onClick={() => void download('pdf')} disabled={downloading !== null}>
+            {downloading === 'pdf' ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <FileText className="size-4" aria-hidden />
+            )}
+            Download PDF
+          </Button>
         </div>
       </div>
 
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Couldn&apos;t load the report</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+          <AlertAction>
+            <Button size="xs" variant="outline" onClick={() => void load()}>
+              Retry
+            </Button>
+          </AlertAction>
+        </Alert>
+      )}
+
+      <Card className="mb-4 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
+            <TabsList>
+              <TabsTrigger value="attendance">
+                <CalendarDays className="size-4" aria-hidden />
+                Attendance
+              </TabsTrigger>
+              <TabsTrigger value="leave">
+                <FileText className="size-4" aria-hidden />
+                Leave
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {tab === 'attendance' ? (
+            <>
+              <div className="grid gap-1.5">
+                <Label htmlFor="report-month" className="text-muted-foreground">
+                  Month
+                </Label>
+                <Input
+                  id="report-month"
+                  type="month"
+                  className="w-44"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value || currentMonth())}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-muted-foreground">Site</Label>
+                <Select
+                  value={siteId === '' ? 'all' : siteId}
+                  onValueChange={(value) => setSiteId(value === 'all' ? '' : value)}
+                >
+                  <SelectTrigger className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All sites</SelectItem>
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid gap-1.5">
+                <Label htmlFor="report-from" className="text-muted-foreground">
+                  From
+                </Label>
+                <Input
+                  id="report-from"
+                  type="date"
+                  className="w-44"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value || from)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="report-to" className="text-muted-foreground">
+                  To
+                </Label>
+                <Input
+                  id="report-to"
+                  type="date"
+                  className="w-44"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value || to)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
+
       {loading ? (
-        <div className={cn(cardCls, 'flex justify-center py-16')}>
-          <Spinner className="h-6 w-6 text-indigo-600" />
+        <div className="space-y-4">
+          {tab === 'attendance' && <Skeleton className="h-72 rounded-xl" />}
+          <Card className="overflow-hidden py-0">
+            <div className="border-b px-4 py-3">
+              <Skeleton className="h-4 w-48" />
+            </div>
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 6 }).map((_, row) => (
+                <Skeleton key={row} className="h-5 w-full" />
+              ))}
+            </div>
+          </Card>
         </div>
       ) : !report ? (
-        <div className={cardCls}>
-          <EmptyState
-            icon={<CalendarDays className="h-8 w-8" />}
-            title="No report loaded"
-            message="Pick a period above and refresh to preview the report."
-          />
+        <div className="flex flex-col items-center justify-center gap-1.5 py-16 text-center">
+          <CalendarDays className="size-6 text-muted-foreground" aria-hidden />
+          <p className="text-sm font-medium">No report loaded</p>
+          <p className="max-w-md text-[13px] text-muted-foreground">
+            Pick a period above and refresh to preview the report.
+          </p>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {tab === 'attendance' && chartData.length > 0 && (
-            <div className={cn(cardCls, 'p-4')}>
-              <div className="mb-3 text-sm font-semibold text-slate-800">
-                Present vs late — {monthLabel(month)}
-              </div>
-              <div className="h-64">
+            <Card className="gap-3 py-4">
+              <div className="px-4 text-sm font-medium">Present vs late — {monthLabel(month)}</div>
+              <div className="h-64 px-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                     <XAxis
                       dataKey="name"
-                      tick={{ fontSize: 11, fill: '#64748b' }}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                       interval={0}
                       angle={-20}
                       textAnchor="end"
                       height={56}
                     />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="Present" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Late" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                    />
+                    <Tooltip {...CHART_TOOLTIP} />
+                    <Legend wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }} />
+                    <Bar dataKey="Present" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Late" fill="var(--chart-4)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </Card>
           )}
 
-          <div className={cn(cardCls, 'overflow-hidden')}>
-            <div className="border-b border-slate-200 px-4 py-3">
-              <div className="text-sm font-semibold text-slate-800">{report.title}</div>
-              <div className="text-xs text-slate-400">{report.subtitle}</div>
+          <Card className="overflow-hidden py-0">
+            <div className="border-b px-4 py-3">
+              <div className="text-sm font-medium">{report.title}</div>
+              <div className="text-[13px] text-muted-foreground">{report.subtitle}</div>
             </div>
             {report.rows.length === 0 ? (
-              <EmptyState
-                title="No data for this period"
-                message="No engineers or leave records fall inside the selected range."
-              />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                      {report.columns.map((column) => (
-                        <th key={column} className="whitespace-nowrap px-4 py-3">
-                          {column}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex} className="border-b border-slate-100 last:border-b-0">
-                        {row.map((cell, cellIndex) => (
-                          <td
-                            key={cellIndex}
-                            className={cn(
-                              'whitespace-nowrap px-4 py-2.5',
-                              cellIndex === 0 ? 'text-slate-500' : 'text-slate-700',
-                            )}
-                          >
-                            {String(cell)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex flex-col items-center justify-center gap-1.5 py-16 text-center">
+                <CalendarDays className="size-6 text-muted-foreground" aria-hidden />
+                <p className="text-sm font-medium">No data for this period</p>
+                <p className="max-w-md text-[13px] text-muted-foreground">
+                  No engineers or leave records fall inside the selected range.
+                </p>
               </div>
+            ) : (
+              <Table className="text-[13px]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    {report.columns.map((column) => (
+                      <TableHead
+                        key={column}
+                        className="px-3 text-xs uppercase tracking-wide text-muted-foreground"
+                      >
+                        {column}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.rows.map((row, rowIndex) => (
+                    <TableRow key={rowIndex} className="h-10">
+                      {row.map((cell, cellIndex) => (
+                        <TableCell
+                          key={cellIndex}
+                          className={cn('px-3 py-2', typeof cell === 'number' && 'tnum text-right')}
+                        >
+                          {String(cell)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
-          </div>
+          </Card>
         </div>
       )}
     </div>

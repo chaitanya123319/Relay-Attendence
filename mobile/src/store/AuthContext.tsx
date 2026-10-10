@@ -3,7 +3,7 @@ import { authApi } from '../api/endpoints';
 import { setApiTokens, setSessionExpiredHandler } from '../lib/api';
 import { registerPushToken } from '../lib/push';
 import { clearTokens, loadTokens, persistTokens } from '../lib/session';
-import type { User } from '../types';
+import type { AuthSession, User } from '../types';
 
 type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 
@@ -11,6 +11,7 @@ interface AuthContextValue {
   status: AuthStatus;
   user: User | null;
   signIn: (identifier: string, password: string) => Promise<void>;
+  signInWithGoogle: (idToken: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -57,14 +58,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (identifier: string, password: string) => {
-    const session = await authApi.login(identifier, password);
+  /** Applies a session (password or Google) identically. */
+  const applySession = useCallback(async (session: AuthSession) => {
     setApiTokens(session.accessToken, session.refreshToken);
     await persistTokens(session.accessToken, session.refreshToken);
     setUser(session.user);
     setStatus('signedIn');
     void registerPushToken(); // best-effort, never blocks login
   }, []);
+
+  const signIn = useCallback(
+    async (identifier: string, password: string) => {
+      await applySession(await authApi.login(identifier, password));
+    },
+    [applySession],
+  );
+
+  const signInWithGoogle = useCallback(
+    async (idToken: string) => {
+      await applySession(await authApi.googleLogin(idToken));
+    },
+    [applySession],
+  );
 
   const signOut = useCallback(async () => {
     try {
@@ -80,8 +95,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, user, signIn, signOut }),
-    [status, user, signIn, signOut],
+    () => ({ status, user, signIn, signInWithGoogle, signOut }),
+    [status, user, signIn, signInWithGoogle, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

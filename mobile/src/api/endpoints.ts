@@ -18,6 +18,9 @@ import type {
 export const authApi = {
   login: (identifier: string, password: string) =>
     api.post<AuthSession>('/api/auth/login', { identifier, password }).then((r) => r.data),
+  /** Google Sign-In: exchange a Google ID token for a RELAY session. */
+  googleLogin: (idToken: string) =>
+    api.post<AuthSession>('/api/auth/google', { idToken }).then((r) => r.data),
   me: () => api.get<User>('/api/auth/me').then((r) => r.data),
   logout: (refreshToken: string) =>
     api.post<{ ok: boolean }>('/api/auth/logout', { refreshToken }).then((r) => r.data),

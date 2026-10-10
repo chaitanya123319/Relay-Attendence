@@ -136,6 +136,7 @@ Auth column: A=any authenticated, E=ENGINEER, M=MANAGER, H=HR, D=ADMIN; scopes a
 | Method & path | Roles | Purpose |
 |---|---|---|
 | POST `/api/auth/login` | public | email/employeeId + password → access + refresh tokens |
+| POST `/api/auth/google` | public | Google Sign-In: verify ID token → RELAY tokens (linked active users only) |
 | POST `/api/auth/refresh` | public | rotate refresh token → new pair |
 | POST `/api/auth/logout` | A | revoke refresh token |
 | GET `/api/auth/me` | A | current profile |

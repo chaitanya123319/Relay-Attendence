@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, FileText, ImageOff } from 'lucide-react'
-import { getErrorMessage, signMediaUrl } from '../lib/api'
-import { cn } from '../lib/utils'
-import { Spinner } from './ui'
+import { ExternalLink, FileText, ImageOff, Loader2 } from 'lucide-react'
+import { getErrorMessage, signMediaUrl } from '@/lib/api'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 
 /**
  * Renders a protected image (attendance photo) via the signed-URL flow:
@@ -40,19 +41,19 @@ export function AuthedImage({
     return (
       <div
         className={cn(
-          'flex flex-col items-center justify-center gap-2 bg-slate-100 p-4 text-center',
+          'flex flex-col items-center justify-center gap-2 bg-muted p-4 text-center',
           className,
         )}
       >
-        <ImageOff className="h-6 w-6 text-slate-400" />
-        <span className="text-xs text-slate-500">{error}</span>
+        <ImageOff className="size-5 text-muted-foreground" aria-hidden />
+        <span className="text-xs text-muted-foreground">{error}</span>
       </div>
     )
   }
   if (!url) {
     return (
-      <div className={cn('flex items-center justify-center bg-slate-100', className)}>
-        <Spinner className="text-slate-400" />
+      <div className={cn('bg-muted', className)}>
+        <Skeleton className="h-full w-full rounded-none" />
       </div>
     )
   }
@@ -62,11 +63,11 @@ export function AuthedImage({
       target="_blank"
       rel="noreferrer"
       title="Open full size"
-      className={cn('group relative block overflow-hidden bg-slate-100', className)}
+      className={cn('group relative block overflow-hidden bg-muted', className)}
     >
       <img src={url} alt={alt} className="h-full w-full object-cover" />
-      <span className="pointer-events-none absolute right-2 top-2 rounded-md bg-slate-900/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100">
-        <ExternalLink className="h-3.5 w-3.5" />
+      <span className="pointer-events-none absolute right-2 top-2 rounded-md bg-foreground/70 p-1 text-background opacity-0 transition-opacity group-hover:opacity-100">
+        <ExternalLink className="size-3.5" aria-hidden />
       </span>
     </a>
   )
@@ -100,16 +101,22 @@ export function SignedDocumentLink({
 
   return (
     <span className={cn('inline-flex flex-col', className)}>
-      <button
+      <Button
         type="button"
+        variant="link"
+        size="xs"
         onClick={() => void open()}
         disabled={busy}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-50"
+        className="h-auto justify-start p-0 text-[13px]"
       >
-        {busy ? <Spinner className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+        {busy ? (
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+        ) : (
+          <FileText className="size-3.5" aria-hidden />
+        )}
         {label}
-      </button>
-      {error && <span className="mt-0.5 text-xs text-rose-600">{error}</span>}
+      </Button>
+      {error && <span className="mt-0.5 text-xs text-destructive">{error}</span>}
     </span>
   )
 }

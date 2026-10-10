@@ -18,6 +18,9 @@ const envSchema = z.object({
   GPS_ACCURACY_MAX_M: z.coerce.number().positive().default(50),
   TIME_DRIFT_MAX_S: z.coerce.number().positive().default(600),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  // Comma-separated allowlist of Google OAuth client IDs (web, iOS, Android).
+  // Empty = Google sign-in disabled. See README "Sign in with Google".
+  GOOGLE_CLIENT_IDS: z.string().default(''),
   CORS_ORIGIN: z.string().default('*'),
 });
 

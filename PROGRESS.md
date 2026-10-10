@@ -59,3 +59,17 @@ Running log, one entry per phase. "Verified" = the exact command/output that pro
 - ✅ Web dashboard builds, serves, and was driven over the real seeded API (including a browser pass) — shows real data.
 - ✅ README lets a stranger run everything in ~10 minutes; no TODO placeholders anywhere in app code; no fake data in production paths (seed data is explicitly a seed).
 - 🔎 Notable during verification: subagent-reported findings were independently re-checked, not taken on trust; the mobile agent's catch of the `balances/me` naming was folded back into `ARCHITECTURE.md`.
+
+## Google Sign-In (web + mobile) — backend ✅ verified; web integration after UI rebuild
+- `POST /api/auth/google` (`src/routes/auth.routes.ts` + `auth.service.loginWithGoogle` + `lib/google.ts`): Google ID token verified server-side via `google-auth-library` (signature/JWKS, issuer, expiry, audience allowlist `GOOGLE_CLIENT_IDS`), `email_verified` required, then mapped to an existing **active** RELAY user → normal access+refresh pair; audited as `AUTH_LOGIN_GOOGLE`; disabled with `503 GOOGLE_DISABLED` when unconfigured. No self-registration (DECISIONS.md #19).
+- **Verified:** `tsc` clean; Jest **7 new Google tests pass** (active-user mapping incl. using the issued access token, unlinked-email 403, unverified 401, deactivated 403, verifier failure 401, validation 400, real-module disabled-state 503) → suite **53/53**.
+- Mobile app: `expo-auth-session` Google flow (`src/lib/googleAuth.ts`), "Continue with Google" on the login screen (only when a client id is configured), session applied through the shared `applySession` path; `app.json` scheme + `expo-web-browser` plugin. **Verified:** `tsc` clean, `expo export --platform android` exported (2.5 MB hbc).
+- Env/docs: `GOOGLE_CLIENT_IDS` (backend), `EXPO_PUBLIC_GOOGLE_*` (mobile), README "Sign in with Google" console walkthrough. Real Google verification runs once a client ID exists; until then the endpoint correctly reports disabled.
+
+## Dashboard: shadcn/ui rebuild — complete & live-verified
+- All 16 screens/components rebuilt on shadcn/ui (new-york/radix, neutral, Geist); old kit removed. `npm run build` clean, `npm run lint` 0 errors.
+- Live browser pass (admin + real seeded data) across Team board, Leave queue (approve/reject flows), Reports, Sites, Employees, Leave types, Balances, Payroll, notice/404 — in **both themes**; then DOM ground truth for map chrome (attribution/zoom `oklch(0.205 0 0)`, geofence path present, theme class applied).
+- Polish fixes from the pass: palette-themed page scrollbar; **dark-mode maps = keyless inverted-OSM tiles** (CARTO dark basemap now needs an API key → watermark tiles; reverted) for both Team map + geofence picker; site pins switched to CSS `divIcon`s (stock Leaflet PNG markers render broken under the bundler; `leaflet-setup.ts` deleted as dead code); Leaflet zoom/attribution chrome themed; geofence stroke weight 2; sidebar micro-text 11px → 12px.
+- **Google Sign-In (web)**: GIS button on the login card (`GoogleSignInButton.tsx`, no page reload, theme-aware), `loginWithGoogle` in `AuthContext`, visible only when `VITE_GOOGLE_CLIENT_ID` is set; `web/.env.example` added.
+- Impeccable detector on the rebuilt source: `npx impeccable detect web/src` → **0 findings** (exit 0).
+- Note: dev DB contains a test employee "Chaitanya Chavan (EMP - 005)" created during dashboard testing — deactivate via Employees page if unwanted.

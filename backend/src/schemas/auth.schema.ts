@@ -12,3 +12,8 @@ export const refreshSchema = z.object({
 export const logoutSchema = z.object({
   refreshToken: z.string().min(20).max(500).optional(),
 });
+
+export const googleLoginSchema = z.object({
+  /** Google ID token (JWT) from the web GIS button or the mobile app. */
+  idToken: z.string().min(20).max(10000),
+});

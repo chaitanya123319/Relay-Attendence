@@ -4,11 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#fafafa" />
     <title>RELAY Attendance — Dashboard</title>
+    <script>
+      // Apply the stored/system theme before first paint (no flash of wrong theme).
+      try {
+        var stored = localStorage.getItem('relay-theme')
+        var dark =
+          stored === 'dark' ||
+          (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.classList.toggle('dark', dark)
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      } catch (e) {
+        /* private mode / storage disabled — default light */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </body>
 </html>

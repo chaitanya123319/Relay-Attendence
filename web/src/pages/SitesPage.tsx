@@ -1,39 +1,45 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Building2, ChevronRight, Clock, Loader2, MapPin, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { toast } from 'sonner'
+import { useAuth } from '@/auth/AuthContext'
+import { SiteFormMap } from '@/components/AttendanceMap'
+import { RoleBadge } from '@/components/badges'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
-  Building2,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  MapPin,
-  Pencil,
-  Plus,
-  Trash2,
-  Users,
-} from 'lucide-react'
-import { useAuth } from '../auth/AuthContext'
-import { SiteFormMap } from '../components/AttendanceMap'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
-  btnOutline,
-  btnPrimary,
-  cardCls,
-  Chip,
-  EmptyState,
-  ErrorBanner,
-  Field,
-  Modal,
-  PageHeader,
-  RoleBadge,
-  Spinner,
-  SuccessBanner,
-  inputCls,
-} from '../components/ui'
-import { api, getErrorMessage } from '../lib/api'
-import type { OutOfRangeBehavior, Site, SiteAssignment, SiteInput, User } from '../lib/types'
-import { cn } from '../lib/utils'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
+import { api, getErrorMessage } from '@/lib/api'
+import type { OutOfRangeBehavior, Site, SiteAssignment, SiteInput, User } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
-/* ── create / edit modal ────────────────────────────────────────────────── */
+/* ── create / edit dialog ───────────────────────────────────────────────── */
 
-function SiteFormModal({
+function SiteFormDialog({
   site,
   onClose,
   onSaved,
@@ -111,47 +117,53 @@ function SiteFormModal({
   }
 
   return (
-    <Modal
+    <Dialog
       open
-      onClose={onClose}
-      title={isEdit ? `Edit ${site?.name ?? 'site'}` : 'New project site'}
-      subtitle="Geofence, out-of-range policy and shift timing drive server-side attendance rules."
-      size="xl"
-      footer={
-        <>
-          <button type="button" className={btnOutline} onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button type="button" className={btnPrimary} onClick={() => void submit()} disabled={busy}>
-            {busy && <Spinner />}
-            {isEdit ? 'Save changes' : 'Create site'}
-          </button>
-        </>
-      }
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
     >
-      <div className="space-y-5">
-        {error && <ErrorBanner message={error} />}
+      <DialogContent className="thin-scroll max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? `Edit ${site?.name ?? 'site'}` : 'New project site'}</DialogTitle>
+          <DialogDescription>
+            Geofence, out-of-range policy and shift timing drive server-side attendance rules.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Site name">
-            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field label="Address">
-            <input
-              className={inputCls}
+          <div className="grid gap-1.5">
+            <Label htmlFor="site-name">Site name</Label>
+            <Input id="site-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="site-address">Address</Label>
+            <Input
+              id="site-address"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Street, area, city"
             />
-          </Field>
+          </div>
         </div>
 
         <div>
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[13px] text-muted-foreground">
               Location — click the map or drag the pin; numbers stay in sync
             </span>
-            <span className={cn('text-xs', coordsValid ? 'text-slate-400' : 'text-rose-600')}>
+            <span
+              className={cn(
+                'tnum text-xs',
+                coordsValid ? 'text-muted-foreground' : 'text-destructive',
+              )}
+            >
               {coordsValid ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : 'Invalid coordinates'}
             </span>
           </div>
@@ -162,115 +174,147 @@ function SiteFormModal({
             onPick={pickFromMap}
           />
           <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Latitude">
-              <input
-                className={inputCls}
+            <div className="grid gap-1.5">
+              <Label htmlFor="site-lat">Latitude</Label>
+              <Input
+                id="site-lat"
+                className="tnum"
                 type="number"
                 step="any"
                 value={latStr}
                 onChange={(e) => setLatStr(e.target.value)}
               />
-            </Field>
-            <Field label="Longitude">
-              <input
-                className={inputCls}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="site-lng">Longitude</Label>
+              <Input
+                id="site-lng"
+                className="tnum"
                 type="number"
                 step="any"
                 value={lngStr}
                 onChange={(e) => setLngStr(e.target.value)}
               />
-            </Field>
-            <Field label="Geofence radius (m)">
-              <input
-                className={inputCls}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="site-radius">Geofence radius (m)</Label>
+              <Input
+                id="site-radius"
+                className="tnum"
                 type="number"
                 min={10}
                 max={5000}
                 value={radiusM}
                 onChange={(e) => setRadiusM(Math.round(Number(e.target.value) || 0))}
               />
-            </Field>
-            <div>
-              <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="site-radius-slider" className="text-muted-foreground">
                 Radius slider
-              </span>
+              </Label>
               <input
+                id="site-radius-slider"
                 type="range"
                 min={10}
                 max={5000}
                 step={10}
                 value={Math.min(Math.max(radiusM, 10), 5000)}
                 onChange={(e) => setRadiusM(Number(e.target.value))}
-                className="mt-2 w-full accent-indigo-600"
+                className="accent-primary mt-2 w-full"
               />
             </div>
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <Field label="Out-of-range behavior">
-            <select
-              className={inputCls}
+          <div className="grid gap-1.5">
+            <Label>Out-of-range behavior</Label>
+            <Select
               value={behavior}
-              onChange={(e) => setBehavior(e.target.value as OutOfRangeBehavior)}
+              onValueChange={(value) => setBehavior(value as OutOfRangeBehavior)}
             >
-              <option value="REJECT">REJECT — block check-in</option>
-              <option value="FLAG">FLAG — allow, flag record</option>
-            </select>
-          </Field>
-          <Field label="Shift start">
-            <input
-              className={inputCls}
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="REJECT">REJECT — block check-in</SelectItem>
+                <SelectItem value="FLAG">FLAG — allow, flag record</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="site-shift-start">Shift start</Label>
+            <Input
+              id="site-shift-start"
+              className="tnum"
               type="time"
               value={shiftStart}
               onChange={(e) => setShiftStart(e.target.value)}
             />
-          </Field>
-          <Field label="Shift end">
-            <input
-              className={inputCls}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="site-shift-end">Shift end</Label>
+            <Input
+              id="site-shift-end"
+              className="tnum"
               type="time"
               value={shiftEnd}
               onChange={(e) => setShiftEnd(e.target.value)}
             />
-          </Field>
-          <Field label="Late grace (min)">
-            <input
-              className={inputCls}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="site-grace">Late grace (min)</Label>
+            <Input
+              id="site-grace"
+              className="tnum"
               type="number"
               min={0}
               max={240}
               value={grace}
               onChange={(e) => setGrace(Math.round(Number(e.target.value) || 0))}
             />
-          </Field>
-          <Field label="Half-day under (min)">
-            <input
-              className={inputCls}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="site-halfday">Half-day under (min)</Label>
+            <Input
+              id="site-halfday"
+              className="tnum"
               type="number"
               min={30}
               max={720}
               value={halfDay}
               onChange={(e) => setHalfDay(Math.round(Number(e.target.value) || 0))}
             />
-          </Field>
+          </div>
         </div>
-      </div>
-    </Modal>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={() => void submit()} disabled={busy}>
+            {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
+            {isEdit ? 'Save changes' : 'Create site'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-/* ── assignments panel ──────────────────────────────────────────────────── */
+/* ── assignments sheet ──────────────────────────────────────────────────── */
 
-function AssignmentsPanel({
+function AssignmentsSheet({
   site,
   isAdmin,
   users,
+  onClose,
   onChanged,
 }: {
   site: Site
   isAdmin: boolean
   users: User[]
+  onClose: () => void
   onChanged: () => void
 }) {
   const [list, setList] = useState<SiteAssignment[] | null>(null)
@@ -325,77 +369,109 @@ function AssignmentsPanel({
   }
 
   return (
-    <div className="border-t border-slate-200 bg-slate-50/60 px-4 py-4">
-      {error && (
-        <div className="mb-3">
-          <ErrorBanner message={error} onRetry={() => void load()} />
-        </div>
-      )}
-      {isAdmin && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <select
-            className={cn(inputCls, 'w-64')}
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            disabled={busy}
-          >
-            <option value="">
-              {available.length === 0 ? 'No unassigned users left' : 'Select a user to assign…'}
-            </option>
-            {available.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} · {u.employeeId} ({u.role})
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className={btnPrimary}
-            onClick={() => void addAssignment()}
-            disabled={!userId || busy}
-          >
-            {busy ? <Spinner /> : <Plus className="h-4 w-4" />}
-            Assign
-          </button>
-        </div>
-      )}
-      {list === null ? (
-        <div className="flex justify-center py-4">
-          <Spinner className="text-slate-400" />
-        </div>
-      ) : list.length === 0 ? (
-        <p className="text-sm text-slate-500">
-          No active assignments — engineers cannot check in here until assigned.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {list.map((assignment) => (
-            <li
-              key={assignment.id}
-              className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
-            >
-              <span className="text-sm font-medium text-slate-800">{assignment.user.name}</span>
-              <span className="text-xs text-slate-400">{assignment.user.employeeId}</span>
-              <RoleBadge role={assignment.user.role} />
-              {assignment.user.email && (
-                <span className="hidden text-xs text-slate-400 sm:inline">{assignment.user.email}</span>
-              )}
-              {isAdmin && (
-                <button
-                  type="button"
-                  className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-500 disabled:opacity-50"
-                  disabled={busy}
-                  onClick={() => void removeAssignment(assignment.id)}
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Site assignments</SheetTitle>
+          <SheetDescription>
+            {site.name} · users attached to this geofence. Engineers cannot check in here until
+            assigned.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="thin-scroll flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertTitle>Assignment request failed</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <Select value={userId} onValueChange={setUserId} disabled={busy}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue
+                    placeholder={
+                      available.length === 0
+                        ? 'No unassigned users left'
+                        : 'Select a user to assign…'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {available.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name} · {user.employeeId} ({user.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={() => void addAssignment()} disabled={!userId || busy}>
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <Plus className="size-4" aria-hidden />
+                )}
+                Assign
+              </Button>
+            </div>
+          )}
+
+          {list === null ? (
+            <div className="space-y-2">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : list.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">
+              No active assignments — engineers cannot check in here until assigned.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {list.map((assignment) => (
+                <li
+                  key={assignment.id}
+                  className="flex items-center gap-2 rounded-lg border px-3 py-2"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Remove
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{assignment.user.name}</span>
+                      <span className="tnum text-xs text-muted-foreground">
+                        {assignment.user.employeeId}
+                      </span>
+                    </div>
+                    {assignment.user.email && (
+                      <div className="truncate text-xs text-muted-foreground">
+                        {assignment.user.email}
+                      </div>
+                    )}
+                  </div>
+                  <RoleBadge role={assignment.user.role} />
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={busy}
+                      onClick={() => void removeAssignment(assignment.id)}
+                      aria-label={`Remove ${assignment.user.name} from this site`}
+                    >
+                      <Trash2 className="size-3.5 text-destructive" aria-hidden />
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -408,10 +484,9 @@ export default function SitesPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [flash, setFlash] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editSite, setEditSite] = useState<Site | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [assignSite, setAssignSite] = useState<Site | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -440,177 +515,178 @@ export default function SitesPage() {
     void loadUsers()
   }, [load, loadUsers])
 
-  const behaviorChip = (behavior: OutOfRangeBehavior) =>
+  const behaviorBadge = (behavior: OutOfRangeBehavior) =>
     behavior === 'REJECT' ? (
-      <Chip label="REJECT out-of-range" cls="border-rose-200 bg-rose-50 text-rose-700" />
+      <Badge variant="destructive">REJECT out-of-range</Badge>
     ) : (
-      <Chip label="FLAG out-of-range" cls="border-amber-200 bg-amber-50 text-amber-700" />
+      <Badge variant="secondary">FLAG out-of-range</Badge>
     )
 
   return (
     <div>
-      <PageHeader
-        title="Project sites"
-        subtitle="Geofences, shifts and team assignments"
-        actions={
-          isAdmin ? (
-            <button type="button" className={btnPrimary} onClick={() => setFormOpen(true)}>
-              <Plus className="h-4 w-4" />
-              New site
-            </button>
-          ) : (
-            <Chip
-              label="View only — site config is admin-managed"
-              cls="border-slate-200 bg-slate-50 text-slate-500"
-            />
-          )
-        }
-      />
-
-      {flash && (
-        <div className="mb-4">
-          <SuccessBanner message={flash} onDismiss={() => setFlash(null)} />
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Project sites</h1>
+          <p className="text-[13px] text-muted-foreground">Geofences, shifts and team assignments</p>
         </div>
-      )}
+        {isAdmin ? (
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="size-4" aria-hidden />
+            New site
+          </Button>
+        ) : (
+          <span className="text-[13px] text-muted-foreground">
+            View only — site config is admin-managed
+          </span>
+        )}
+      </div>
 
       {error && (
-        <div className="mb-4">
-          <ErrorBanner message={error} onRetry={() => void load()} />
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Couldn&apos;t load sites</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+          <Button size="xs" variant="outline" onClick={() => void load()}>
+            Retry
+          </Button>
+        </Alert>
       )}
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Spinner className="h-6 w-6 text-indigo-600" />
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="gap-3 p-4">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-64" />
+              <Skeleton className="h-5 w-32 rounded-full" />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {Array.from({ length: 4 }).map((__, cell) => (
+                  <Skeleton key={cell} className="h-9 w-full" />
+                ))}
+              </div>
+              <Skeleton className="h-7 w-36" />
+            </Card>
+          ))}
         </div>
       ) : sites.length === 0 ? (
-        <div className={cardCls}>
-          <EmptyState
-            icon={<Building2 className="h-8 w-8" />}
-            title="No project sites yet"
-            message={
-              isAdmin
-                ? 'Create the first site with its geofence and shift timing.'
-                : 'Ask an administrator to create project sites.'
-            }
-          />
+        <div className="flex flex-col items-center justify-center gap-1.5 py-16 text-center">
+          <Building2 className="size-6 text-muted-foreground" aria-hidden />
+          <p className="text-sm font-medium">No project sites yet</p>
+          <p className="max-w-md text-[13px] text-muted-foreground">
+            {isAdmin
+              ? 'Create the first site with its geofence and shift timing.'
+              : 'Ask an administrator to create project sites.'}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {sites.map((site) => (
-            <article key={site.id} className={cn(cardCls, 'overflow-hidden')}>
+            <Card key={site.id} className="gap-0 overflow-hidden py-0">
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-semibold text-slate-900">{site.name}</h2>
-                    <p className="mt-0.5 flex items-center gap-1 text-sm text-slate-500">
-                      <MapPin className="h-3.5 w-3.5 shrink-0" />
-                      {site.address}
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-medium">{site.name}</h2>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                      <MapPin className="size-3.5 shrink-0" aria-hidden />
+                      <span className="truncate">{site.address}</span>
                     </p>
                   </div>
                   {isAdmin && (
-                    <button
-                      type="button"
-                      className={cn(btnOutline, 'shrink-0')}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
                       onClick={() => setEditSite(site)}
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="size-3.5" aria-hidden />
                       Edit
-                    </button>
+                    </Button>
                   )}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {behaviorChip(site.outOfRangeBehavior)}
-                  <Chip
-                    label={`Radius ${site.radiusM} m`}
-                    cls="border-indigo-200 bg-indigo-50 text-indigo-700"
-                  />
+                  {behaviorBadge(site.outOfRangeBehavior)}
+                  <Badge variant="outline" className="tnum">
+                    Radius {site.radiusM} m
+                  </Badge>
                   {!site.isActive && (
-                    <Chip label="Inactive" cls="border-slate-200 bg-slate-100 text-slate-500" />
+                    <Badge variant="outline" className="text-muted-foreground">
+                      Inactive
+                    </Badge>
                   )}
                 </div>
 
-                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                   <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                      Shift
-                    </dt>
-                    <dd className="flex items-center gap-1 text-slate-700">
-                      <Clock className="h-3.5 w-3.5 text-slate-400" />
+                    <dt className="text-xs text-muted-foreground">Shift</dt>
+                    <dd className="tnum mt-0.5 flex items-center gap-1 text-[13px]">
+                      <Clock className="size-3.5 text-muted-foreground" aria-hidden />
                       {site.shiftStart}–{site.shiftEnd}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                      Late grace
-                    </dt>
-                    <dd className="text-slate-700">{site.lateGraceMinutes} min</dd>
+                    <dt className="text-xs text-muted-foreground">Late grace</dt>
+                    <dd className="tnum mt-0.5 text-[13px]">{site.lateGraceMinutes} min</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                      Half-day under
-                    </dt>
-                    <dd className="text-slate-700">{site.halfDayMinutes} min</dd>
+                    <dt className="text-xs text-muted-foreground">Half-day under</dt>
+                    <dd className="tnum mt-0.5 text-[13px]">{site.halfDayMinutes} min</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                      Coordinates
-                    </dt>
-                    <dd className="font-mono text-xs text-slate-600">
+                    <dt className="text-xs text-muted-foreground">Coordinates</dt>
+                    <dd className="tnum mt-0.5 font-mono text-xs text-muted-foreground">
                       {site.lat.toFixed(4)}, {site.lng.toFixed(4)}
                     </dd>
                   </div>
                 </dl>
-
-                <button
-                  type="button"
-                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                  onClick={() => setExpanded(expanded === site.id ? null : site.id)}
-                >
-                  <Users className="h-4 w-4" />
-                  {site.assignments.length} assigned
-                  {expanded === site.id ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
               </div>
 
-              {expanded === site.id && (
-                <AssignmentsPanel
-                  site={site}
-                  isAdmin={isAdmin}
-                  users={users}
-                  onChanged={() => void load()}
-                />
-              )}
-            </article>
+              <div className="border-t px-4 py-2.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => setAssignSite(site)}
+                >
+                  <Users className="size-3.5" aria-hidden />
+                  {isAdmin ? 'Manage assignments' : 'View assignments'}
+                  <span className="tnum">({site.assignments.length})</span>
+                  <ChevronRight className="size-3.5" aria-hidden />
+                </Button>
+              </div>
+            </Card>
           ))}
         </div>
       )}
 
       {formOpen && (
-        <SiteFormModal
+        <SiteFormDialog
           site={null}
           onClose={() => setFormOpen(false)}
           onSaved={(message) => {
             setFormOpen(false)
-            setFlash(message)
+            toast.success(message)
             void load()
           }}
         />
       )}
       {editSite && (
-        <SiteFormModal
+        <SiteFormDialog
           site={editSite}
           onClose={() => setEditSite(null)}
           onSaved={(message) => {
             setEditSite(null)
-            setFlash(message)
+            toast.success(message)
             void load()
           }}
+        />
+      )}
+      {assignSite && (
+        <AssignmentsSheet
+          site={assignSite}
+          isAdmin={isAdmin}
+          users={users}
+          onClose={() => setAssignSite(null)}
+          onChanged={() => void load()}
         />
       )}
     </div>

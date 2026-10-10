@@ -1,33 +1,74 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Pencil, Plus, Tags } from 'lucide-react'
-import { useAuth } from '../auth/AuthContext'
+import { Loader2, Pencil, Plus, Tags } from 'lucide-react'
+import { toast } from 'sonner'
+import { useAuth } from '@/auth/AuthContext'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
-  btnOutline,
-  btnPrimary,
-  cardCls,
-  Chip,
-  EmptyState,
-  ErrorBanner,
-  Field,
-  Modal,
-  PageHeader,
-  Spinner,
-  SuccessBanner,
-  inputCls,
-} from '../components/ui'
-import { api, getErrorMessage } from '../lib/api'
-import type { LeaveType } from '../lib/types'
-import { cn } from '../lib/utils'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { api, getErrorMessage } from '@/lib/api'
+import type { LeaveType } from '@/lib/types'
 
-function BoolChip({ value, trueLabel, falseLabel }: { value: boolean; trueLabel: string; falseLabel: string }) {
+function BoolBadge({
+  value,
+  trueLabel,
+  falseLabel,
+}: {
+  value: boolean
+  trueLabel: string
+  falseLabel: string
+}) {
   return value ? (
-    <Chip label={trueLabel} cls="border-emerald-200 bg-emerald-50 text-emerald-700" />
+    <Badge variant="secondary">{trueLabel}</Badge>
   ) : (
-    <Chip label={falseLabel} cls="border-slate-200 bg-slate-50 text-slate-500" />
+    <Badge variant="outline" className="text-muted-foreground">
+      {falseLabel}
+    </Badge>
   )
 }
 
-function LeaveTypeModal({
+function SwitchRow({
+  id,
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  id: string
+  label: string
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+      <Label htmlFor={id} className="text-sm">
+        {label}
+      </Label>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  )
+}
+
+function LeaveTypeDialog({
   target,
   onClose,
   onSaved,
@@ -100,60 +141,74 @@ function LeaveTypeModal({
   }
 
   return (
-    <Modal
+    <Dialog
       open
-      onClose={onClose}
-      title={isEdit ? `Edit ${target?.name ?? 'leave type'}` : 'New leave type'}
-      subtitle="Quota auto-allocates to engineers; notice, document and half-day rules are enforced server-side."
-      footer={
-        <>
-          <button type="button" className={btnOutline} onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button type="button" className={btnPrimary} onClick={() => void submit()} disabled={busy}>
-            {busy && <Spinner />}
-            {isEdit ? 'Save changes' : 'Create leave type'}
-          </button>
-        </>
-      }
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
     >
-      <div className="space-y-4">
-        {error && <ErrorBanner message={error} />}
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? `Edit ${target?.name ?? 'leave type'}` : 'New leave type'}</DialogTitle>
+          <DialogDescription>
+            Quota auto-allocates to engineers; notice, document and half-day rules are enforced
+            server-side.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Code" hint={isEdit ? 'Codes are immutable.' : 'e.g. EL, SL, CASUAL'}>
-            <input
-              className={cn(inputCls, 'uppercase', isEdit && 'bg-slate-50 text-slate-500')}
+          <div className="grid gap-1.5">
+            <Label htmlFor="lt-code">Code</Label>
+            <Input
+              id="lt-code"
+              className="uppercase"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               disabled={isEdit}
             />
-          </Field>
-          <Field label="Name">
-            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field label="Annual quota (days)">
-            <input
-              className={inputCls}
+            <p className="text-xs text-muted-foreground">
+              {isEdit ? 'Codes are immutable.' : 'e.g. EL, SL, CASUAL'}
+            </p>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="lt-name">Name</Label>
+            <Input id="lt-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="lt-quota">Annual quota (days)</Label>
+            <Input
+              id="lt-quota"
+              className="tnum"
               type="number"
               min={0}
               max={365}
               value={annualQuota}
               onChange={(e) => setAnnualQuota(e.target.value)}
             />
-          </Field>
-          <Field label="Minimum notice (days)">
-            <input
-              className={inputCls}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="lt-notice">Minimum notice (days)</Label>
+            <Input
+              id="lt-notice"
+              className="tnum"
               type="number"
               min={0}
               max={90}
               value={minNoticeDays}
               onChange={(e) => setMinNoticeDays(e.target.value)}
             />
-          </Field>
-          <Field label="Max consecutive days" hint="Blank = no limit.">
-            <input
-              className={inputCls}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="lt-max-consecutive">Max consecutive days</Label>
+            <Input
+              id="lt-max-consecutive"
+              className="tnum"
               type="number"
               min={1}
               max={365}
@@ -161,50 +216,45 @@ function LeaveTypeModal({
               onChange={(e) => setMaxConsecutive(e.target.value)}
               placeholder="No limit"
             />
-          </Field>
+            <p className="text-xs text-muted-foreground">Blank = no limit.</p>
+          </div>
         </div>
+
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-              checked={paid}
-              onChange={(e) => setPaid(e.target.checked)}
-            />
-            Paid leave
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-              checked={requiresDocument}
-              onChange={(e) => setRequiresDocument(e.target.checked)}
-            />
-            Supporting document required
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-              checked={allowHalfDay}
-              onChange={(e) => setAllowHalfDay(e.target.checked)}
-            />
-            Half-day requests allowed
-          </label>
+          <SwitchRow id="lt-paid" label="Paid leave" checked={paid} onCheckedChange={setPaid} />
+          <SwitchRow
+            id="lt-document"
+            label="Supporting document required"
+            checked={requiresDocument}
+            onCheckedChange={setRequiresDocument}
+          />
+          <SwitchRow
+            id="lt-halfday"
+            label="Half-day requests allowed"
+            checked={allowHalfDay}
+            onCheckedChange={setAllowHalfDay}
+          />
           {isEdit && (
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-              />
-              Active (selectable by engineers)
-            </label>
+            <SwitchRow
+              id="lt-active"
+              label="Active (selectable by engineers)"
+              checked={isActive}
+              onCheckedChange={setIsActive}
+            />
           )}
         </div>
-      </div>
-    </Modal>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={() => void submit()} disabled={busy}>
+            {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
+            {isEdit ? 'Save changes' : 'Create leave type'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -214,7 +264,6 @@ export default function LeaveTypesPage() {
   const [types, setTypes] = useState<LeaveType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [flash, setFlash] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<LeaveType | null>(null)
 
@@ -237,131 +286,163 @@ export default function LeaveTypesPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Leave types"
-        subtitle="Configurable leave policy: quotas, notice periods, documents and half-day rules"
-        actions={
-          isAdmin ? (
-            <button type="button" className={btnPrimary} onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              New leave type
-            </button>
-          ) : (
-            <Chip
-              label="View only — leave types are admin-managed"
-              cls="border-slate-200 bg-slate-50 text-slate-500"
-            />
-          )
-        }
-      />
-
-      {flash && (
-        <div className="mb-4">
-          <SuccessBanner message={flash} onDismiss={() => setFlash(null)} />
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Leave types</h1>
+          <p className="text-[13px] text-muted-foreground">
+            Configurable leave policy: quotas, notice periods, documents and half-day rules
+          </p>
         </div>
-      )}
-
-      {error && (
-        <div className="mb-4">
-          <ErrorBanner message={error} onRetry={() => void load()} />
-        </div>
-      )}
-
-      <div className={cn(cardCls, 'overflow-hidden')}>
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Spinner className="h-6 w-6 text-indigo-600" />
-          </div>
-        ) : types.length === 0 ? (
-          <EmptyState
-            icon={<Tags className="h-8 w-8" />}
-            title="No leave types"
-            message={isAdmin ? 'Create the first leave type.' : 'Ask an administrator to configure leave types.'}
-          />
+        {isAdmin ? (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" aria-hidden />
+            New leave type
+          </Button>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Quota</th>
-                  <th className="px-4 py-3">Paid</th>
-                  <th className="px-4 py-3">Document</th>
-                  <th className="px-4 py-3">Notice</th>
-                  <th className="px-4 py-3">Max consecutive</th>
-                  <th className="px-4 py-3">Half-day</th>
-                  <th className="px-4 py-3">Active</th>
-                  {isAdmin && <th className="px-4 py-3 text-right">Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {types.map((type) => (
-                  <tr key={type.id} className="border-b border-slate-100 last:border-b-0">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-800">{type.name}</div>
-                      <div className="font-mono text-xs text-slate-400">{type.code}</div>
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-slate-700">{type.annualQuota} d</td>
-                    <td className="px-4 py-3">
-                      <BoolChip value={type.paid} trueLabel="Paid" falseLabel="Unpaid" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <BoolChip
-                        value={type.requiresDocument}
-                        trueLabel="Required"
-                        falseLabel="Not required"
-                      />
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-slate-700">
-                      {type.minNoticeDays} d
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {type.maxConsecutiveDays === null ? '—' : `${type.maxConsecutiveDays} d`}
-                    </td>
-                    <td className="px-4 py-3">
-                      <BoolChip value={type.allowHalfDay} trueLabel="Allowed" falseLabel="No" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <BoolChip value={type.isActive} trueLabel="Active" falseLabel="Inactive" />
-                    </td>
-                    {isAdmin && (
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          className={btnOutline}
-                          onClick={() => setEditTarget(type)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <span className="text-[13px] text-muted-foreground">
+            View only — leave types are admin-managed
+          </span>
         )}
       </div>
 
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Couldn&apos;t load leave types</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+          <AlertAction>
+            <Button size="xs" variant="outline" onClick={() => void load()}>
+              Retry
+            </Button>
+          </AlertAction>
+        </Alert>
+      )}
+
+      <Card className="overflow-hidden py-0">
+        <Table className="text-[13px]">
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                Type
+              </TableHead>
+              <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                Quota
+              </TableHead>
+              <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                Paid
+              </TableHead>
+              <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                Document
+              </TableHead>
+              <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                Notice
+              </TableHead>
+              <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                Max consecutive
+              </TableHead>
+              <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                Half-day
+              </TableHead>
+              <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                Active
+              </TableHead>
+              {isAdmin && (
+                <TableHead className="px-3 text-right text-xs uppercase tracking-wide text-muted-foreground">
+                  Actions
+                </TableHead>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, row) => (
+                <TableRow key={row} className="h-10 hover:bg-transparent">
+                  {Array.from({ length: isAdmin ? 9 : 8 }).map((__, cell) => (
+                    <TableCell key={cell} className="px-3 py-2">
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : types.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell
+                  colSpan={isAdmin ? 9 : 8}
+                  className="h-40 text-center whitespace-normal"
+                >
+                  <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                    <Tags className="size-6" aria-hidden />
+                    <span className="text-sm font-medium text-foreground">No leave types</span>
+                    <span className="max-w-md text-[13px]">
+                      {isAdmin
+                        ? 'Create the first leave type.'
+                        : 'Ask an administrator to configure leave types.'}
+                    </span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              types.map((type) => (
+                <TableRow key={type.id} className="h-10">
+                  <TableCell className="px-3 py-2">
+                    <span className="font-medium">{type.name}</span>
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">
+                      {type.code}
+                    </span>
+                  </TableCell>
+                  <TableCell className="tnum px-3 py-2">{type.annualQuota} d</TableCell>
+                  <TableCell className="px-3 py-2">
+                    <BoolBadge value={type.paid} trueLabel="Paid" falseLabel="Unpaid" />
+                  </TableCell>
+                  <TableCell className="px-3 py-2">
+                    <BoolBadge
+                      value={type.requiresDocument}
+                      trueLabel="Required"
+                      falseLabel="Not required"
+                    />
+                  </TableCell>
+                  <TableCell className="tnum px-3 py-2">{type.minNoticeDays} d</TableCell>
+                  <TableCell className="tnum px-3 py-2">
+                    {type.maxConsecutiveDays === null ? '—' : `${type.maxConsecutiveDays} d`}
+                  </TableCell>
+                  <TableCell className="px-3 py-2">
+                    <BoolBadge value={type.allowHalfDay} trueLabel="Allowed" falseLabel="No" />
+                  </TableCell>
+                  <TableCell className="px-3 py-2">
+                    <BoolBadge value={type.isActive} trueLabel="Active" falseLabel="Inactive" />
+                  </TableCell>
+                  {isAdmin && (
+                    <TableCell className="px-3 py-1.5 text-right">
+                      <Button variant="outline" size="sm" onClick={() => setEditTarget(type)}>
+                        <Pencil className="size-3.5" aria-hidden />
+                        Edit
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
       {createOpen && (
-        <LeaveTypeModal
+        <LeaveTypeDialog
           target={null}
           onClose={() => setCreateOpen(false)}
           onSaved={(message) => {
             setCreateOpen(false)
-            setFlash(message)
+            toast.success(message)
             void load()
           }}
         />
       )}
       {editTarget && (
-        <LeaveTypeModal
+        <LeaveTypeDialog
           target={editTarget}
           onClose={() => setEditTarget(null)}
           onSaved={(message) => {
             setEditTarget(null)
-            setFlash(message)
+            toast.success(message)
             void load()
           }}
         />

@@ -1,35 +1,38 @@
-import { useCallback, useEffect, useState } from 'react'
-import { CalendarDays, CheckCircle2, Paperclip, XCircle } from 'lucide-react'
-import { SignedDocumentLink } from '../components/SignedMedia'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CalendarDays, CheckCircle2, Loader2, Paperclip, XCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { SignedDocumentLink } from '@/components/SignedMedia'
+import { StatusBadge } from '@/components/badges'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
-  btnDanger,
-  btnOutline,
-  btnPrimary,
-  cardCls,
-  EmptyState,
-  ErrorBanner,
-  Field,
-  Modal,
-  PageHeader,
-  Spinner,
-  StatusChip,
-  SuccessBanner,
-  inputCls,
-} from '../components/ui'
-import { api, getErrorMessage } from '../lib/api'
-import type { LeaveRequest } from '../lib/types'
-import { cn, fmtDate, fmtDateTime, initials, timeAgo } from '../lib/utils'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { api, getErrorMessage } from '@/lib/api'
+import type { LeaveRequest } from '@/lib/types'
+import { fmtDate, fmtDateTime, initials, timeAgo } from '@/lib/utils'
 
-const TABS = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ALL'] as const
-type Tab = (typeof TABS)[number]
-
-const TAB_LABELS: Record<Tab, string> = {
-  PENDING: 'Pending',
-  APPROVED: 'Approved',
-  REJECTED: 'Rejected',
-  CANCELLED: 'Cancelled',
-  ALL: 'All',
-}
+type Tab = 'PENDING' | 'HISTORY'
 
 function dateSpan(request: LeaveRequest): string {
   const half = request.isHalfDay ? ` · ${request.halfDayPeriod ?? 'AM'} half-day` : ''
@@ -42,16 +45,16 @@ export default function LeaveQueuePage() {
   const [items, setItems] = useState<LeaveRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [flash, setFlash] = useState<string | null>(null)
-  const [decision, setDecision] = useState<{ request: LeaveRequest; mode: 'approve' | 'reject' } | null>(
-    null,
-  )
+  const [decision, setDecision] = useState<{
+    request: LeaveRequest
+    mode: 'approve' | 'reject'
+  } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const params = tab === 'ALL' ? undefined : { status: tab }
+      const params = tab === 'PENDING' ? { status: 'PENDING' } : undefined
       const { data } = await api.get<LeaveRequest[]>('/leave/requests', { params })
       setItems(data)
     } catch (err) {
@@ -65,200 +68,267 @@ export default function LeaveQueuePage() {
     void load()
   }, [load])
 
+  /* History shows decided / cancelled requests; pending work lives on its own tab. */
+  const history = useMemo(() => items.filter((request) => request.status !== 'PENDING'), [items])
+
   return (
     <div>
-      <PageHeader
-        title="Leave queue"
-        subtitle="Review leave requests from engineers on your sites"
-      />
-
-      {flash && (
-        <div className="mb-4">
-          <SuccessBanner message={flash} onDismiss={() => setFlash(null)} />
-        </div>
-      )}
-
-      <div className="mb-5 flex flex-wrap gap-1.5">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-              tab === t
-                ? 'bg-slate-900 text-white'
-                : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
-            )}
-          >
-            {TAB_LABELS[t]}
-          </button>
-        ))}
+      <div className="mb-4">
+        <h1 className="text-lg font-semibold tracking-tight">Leave queue</h1>
+        <p className="text-[13px] text-muted-foreground">
+          Review leave requests from engineers on your sites
+        </p>
       </div>
 
-      {error && (
-        <div className="mb-4">
-          <ErrorBanner message={error} onRetry={() => void load()} />
-        </div>
-      )}
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as Tab)}
+        className="gap-4"
+      >
+        <TabsList>
+          <TabsTrigger value="PENDING">Pending</TabsTrigger>
+          <TabsTrigger value="HISTORY">History</TabsTrigger>
+        </TabsList>
 
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Spinner className="h-6 w-6 text-indigo-600" />
-        </div>
-      ) : items.length === 0 ? (
-        <div className={cardCls}>
-          <EmptyState
-            icon={<CalendarDays className="h-8 w-8" />}
-            title={tab === 'PENDING' ? 'No pending requests' : `No ${TAB_LABELS[tab].toLowerCase()} requests`}
-            message="Leave requests from your assigned engineers will appear here."
-          />
-        </div>
-      ) : tab === 'PENDING' ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {items.map((request) => (
-            <article key={request.id} className={cn(cardCls, 'flex flex-col p-4')}>
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
-                  {initials(request.user?.name ?? '?')}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-slate-800">
-                      {request.user?.name ?? 'Unknown'}
-                    </span>
-                    <span className="text-xs text-slate-400">{request.user?.employeeId}</span>
-                    <span className="ml-auto">
-                      <StatusChip status={request.status} />
-                    </span>
+        <TabsContent value="PENDING">
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Couldn&apos;t load requests</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+              <AlertAction>
+                <Button size="xs" variant="outline" onClick={() => void load()}>
+                  Retry
+                </Button>
+              </AlertAction>
+            </Alert>
+          )}
+
+          {loading ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Card key={index} className="gap-0 space-y-3 p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-9 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-56" />
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {dateSpan(request)} · <span className="font-medium">{request.days} day(s)</span>
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Skeleton className="h-8 w-20" />
+                    <Skeleton className="h-8 w-24" />
                   </div>
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">
-                  {request.leaveType.name} ({request.leaveType.code})
-                </span>
-                {request.leaveType.paid && (
-                  <span className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
-                    Paid
-                  </span>
-                )}
-                {request.isHalfDay && (
-                  <span className="rounded-lg bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
-                    {request.halfDayPeriod ?? 'AM'} half-day
-                  </span>
-                )}
-              </div>
-
-              <p className="mt-3 flex-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
-                {request.reason}
+                </Card>
+              ))}
+            </div>
+          ) : items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-1.5 py-16 text-center">
+              <CalendarDays className="size-6 text-muted-foreground" aria-hidden />
+              <p className="text-sm font-medium">No pending requests</p>
+              <p className="max-w-md text-[13px] text-muted-foreground">
+                Leave requests from your assigned engineers will appear here.
               </p>
-
-              {request.documents.length > 0 && (
-                <div className="mt-3 space-y-1 border-t border-slate-100 pt-3">
-                  {request.documents.map((doc) => (
-                    <SignedDocumentLink
-                      key={doc.id}
-                      path={doc.endpoint}
-                      label={`${doc.originalName}`}
-                    />
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-                <span className="text-xs text-slate-400">Requested {timeAgo(request.createdAt)}</span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className={btnDanger}
-                    onClick={() => setDecision({ request, mode: 'reject' })}
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Reject
-                  </button>
-                  <button
-                    type="button"
-                    className={btnPrimary}
-                    onClick={() => setDecision({ request, mode: 'approve' })}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Approve
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className={cn(cardCls, 'overflow-hidden')}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">Employee</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Dates</th>
-                  <th className="px-4 py-3">Days</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Decided by</th>
-                  <th className="px-4 py-3">Comment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((request) => (
-                  <tr key={request.id} className="border-b border-slate-100 last:border-b-0">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-800">{request.user?.name ?? '—'}</div>
-                      <div className="text-xs text-slate-400">{request.user?.employeeId}</div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{request.leaveType.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{dateSpan(request)}</td>
-                    <td className="px-4 py-3 tabular-nums text-slate-700">{request.days}</td>
-                    <td className="px-4 py-3">
-                      <StatusChip status={request.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {request.decidedBy ? (
-                        <>
-                          <div className="text-slate-700">{request.decidedBy.name}</div>
-                          <div className="text-xs text-slate-400">
-                            {request.decidedAt ? fmtDateTime(request.decidedAt) : ''}
-                          </div>
-                        </>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="max-w-56 px-4 py-3 text-slate-600">
-                      {request.decisionComment ? (
-                        <span className="line-clamp-2" title={request.decisionComment}>
-                          {request.decisionComment}
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {items.map((request) => (
+                <Card key={request.id} className="gap-0 p-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar className="size-9">
+                      <AvatarFallback className="text-xs">
+                        {initials(request.user?.name ?? '?')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {request.user?.name ?? 'Unknown'}
                         </span>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                        <span className="tnum text-xs text-muted-foreground">
+                          {request.user?.employeeId}
+                        </span>
+                        <span className="ml-auto">
+                          <StatusBadge status={request.status} />
+                        </span>
+                      </div>
+                      <div className="tnum mt-1 text-[13px] text-muted-foreground">
+                        {dateSpan(request)} ·{' '}
+                        <span className="font-medium text-foreground">{request.days} day(s)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline">
+                      {request.leaveType.name} ({request.leaveType.code})
+                    </Badge>
+                    {request.leaveType.paid && <Badge variant="secondary">Paid</Badge>}
+                    {request.isHalfDay && (
+                      <Badge variant="secondary">{request.halfDayPeriod ?? 'AM'} half-day</Badge>
+                    )}
+                  </div>
+
+                  <p className="mt-3 flex-1 text-[13px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                    {request.reason}
+                  </p>
+
+                  {request.documents.length > 0 && (
+                    <div className="mt-3 space-y-1 border-t pt-3">
+                      {request.documents.map((doc) => (
+                        <SignedDocumentLink key={doc.id} path={doc.endpoint} label={doc.originalName} />
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3">
+                    <span className="tnum text-xs text-muted-foreground">
+                      Requested {timeAgo(request.createdAt)}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setDecision({ request, mode: 'reject' })}
+                      >
+                        <XCircle className="size-4" aria-hidden />
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => setDecision({ request, mode: 'approve' })}
+                      >
+                        <CheckCircle2 className="size-4" aria-hidden />
+                        Approve
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="HISTORY">
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Couldn&apos;t load requests</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+              <AlertAction>
+                <Button size="xs" variant="outline" onClick={() => void load()}>
+                  Retry
+                </Button>
+              </AlertAction>
+            </Alert>
+          )}
+
+          <Card className="overflow-hidden py-0">
+            <Table className="text-[13px]">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                    Employee
+                  </TableHead>
+                  <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                    Type
+                  </TableHead>
+                  <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                    Dates
+                  </TableHead>
+                  <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                    Days
+                  </TableHead>
+                  <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                    Status
+                  </TableHead>
+                  <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                    Decided by
+                  </TableHead>
+                  <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                    Comment
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  Array.from({ length: 6 }).map((_, row) => (
+                    <TableRow key={row} className="h-10 hover:bg-transparent">
+                      {Array.from({ length: 7 }).map((__, cell) => (
+                        <TableCell key={cell} className="px-3 py-2">
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : history.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={7} className="h-40 text-center whitespace-normal">
+                      <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                        <CalendarDays className="size-6" aria-hidden />
+                        <span className="text-sm font-medium text-foreground">
+                          No decided requests yet
+                        </span>
+                        <span className="max-w-md text-[13px]">
+                          Approved, rejected and cancelled requests will appear here.
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  history.map((request) => (
+                    <TableRow key={request.id} className="h-10">
+                      <TableCell className="px-3 py-2">
+                        <span className="font-medium">{request.user?.name ?? '—'}</span>
+                        <span className="tnum ml-2 text-xs text-muted-foreground">
+                          {request.user?.employeeId}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-3 py-2">{request.leaveType.name}</TableCell>
+                      <TableCell className="tnum px-3 py-2 text-muted-foreground">
+                        {dateSpan(request)}
+                      </TableCell>
+                      <TableCell className="tnum px-3 py-2">{request.days}</TableCell>
+                      <TableCell className="px-3 py-2">
+                        <StatusBadge status={request.status} />
+                      </TableCell>
+                      <TableCell className="px-3 py-2">
+                        {request.decidedBy ? (
+                          <>
+                            <span>{request.decidedBy.name}</span>
+                            <span className="tnum ml-2 text-xs text-muted-foreground">
+                              {request.decidedAt ? fmtDateTime(request.decidedAt) : ''}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-56 px-3 py-2 whitespace-normal text-muted-foreground">
+                        {request.decisionComment ? (
+                          <span className="line-clamp-2" title={request.decisionComment}>
+                            {request.decisionComment}
+                          </span>
+                        ) : (
+                          <span>—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {decision && (
-        <DecisionModal
+        <DecisionDialog
           request={decision.request}
           mode={decision.mode}
           onCancel={() => setDecision(null)}
-          onDone={(message) => {
+          onDone={() => {
             setDecision(null)
-            setFlash(message)
             void load()
           }}
         />
@@ -267,7 +337,7 @@ export default function LeaveQueuePage() {
   )
 }
 
-function DecisionModal({
+function DecisionDialog({
   request,
   mode,
   onCancel,
@@ -276,17 +346,18 @@ function DecisionModal({
   request: LeaveRequest
   mode: 'approve' | 'reject'
   onCancel: () => void
-  onDone: (message: string) => void
+  onDone: () => void
 }) {
   const isReject = mode === 'reject'
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldError, setFieldError] = useState<string | null>(null)
 
   const submit = async () => {
     const trimmed = comment.trim()
     if (isReject && trimmed.length < 3) {
-      setError('A comment of at least 3 characters is required when rejecting.')
+      setFieldError('A comment of at least 3 characters is required when rejecting.')
       return
     }
     setBusy(true)
@@ -294,10 +365,12 @@ function DecisionModal({
     try {
       if (isReject) {
         await api.post(`/leave/requests/${request.id}/reject`, { comment: trimmed })
+        toast.success('Leave request rejected.')
       } else {
         await api.post(`/leave/requests/${request.id}/approve`, trimmed ? { comment: trimmed } : {})
+        toast.success('Leave request approved — balance updated.')
       }
-      onDone(isReject ? 'Leave request rejected.' : 'Leave request approved — balance updated.')
+      onDone()
     } catch (err) {
       setError(getErrorMessage(err))
       setBusy(false)
@@ -305,49 +378,75 @@ function DecisionModal({
   }
 
   return (
-    <Modal
+    <Dialog
       open
-      onClose={onCancel}
-      title={isReject ? 'Reject leave request' : 'Approve leave request'}
-      subtitle={`${request.user?.name ?? ''} · ${dateSpan(request)} · ${request.leaveType.name}, ${request.days} day(s)`}
-      footer={
-        <>
-          <button type="button" className={btnOutline} onClick={onCancel} disabled={busy}>
+      onOpenChange={(open) => {
+        if (!open && !busy) onCancel()
+      }}
+    >
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{isReject ? 'Reject leave request' : 'Approve leave request'}</DialogTitle>
+          <DialogDescription>
+            {request.user?.name ?? ''} · {dateSpan(request)} · {request.leaveType.name},{' '}
+            {request.days} day(s)
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="rounded-lg border bg-muted/40 p-3">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Paperclip className="size-3.5" aria-hidden />
+            Reason given
+          </div>
+          <p className="mt-1 text-[13px] whitespace-pre-wrap text-foreground">{request.reason}</p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="decision-comment">
+            {isReject ? 'Comment (required)' : 'Comment (optional)'}
+          </Label>
+          <Textarea
+            id="decision-comment"
+            className="min-h-24 resize-y"
+            value={comment}
+            onChange={(e) => {
+              setComment(e.target.value)
+              if (fieldError) setFieldError(null)
+            }}
+            placeholder={isReject ? 'Why is this request being rejected?' : 'Optional note…'}
+            aria-invalid={fieldError ? true : undefined}
+          />
+          {fieldError ? (
+            <p className="text-xs text-destructive">{fieldError}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {isReject
+                ? 'Minimum 3 characters — sent to the engineer.'
+                : 'Sent to the engineer with the approval.'}
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={busy}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className={isReject ? btnDanger : btnPrimary}
+          </Button>
+          <Button
+            variant={isReject ? 'destructive' : 'default'}
             onClick={() => void submit()}
             disabled={busy}
           >
-            {busy && <Spinner />}
+            {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
             {isReject ? 'Reject request' : 'Approve request'}
-          </button>
-        </>
-      }
-    >
-      <div className="space-y-3">
-        {error && <ErrorBanner message={error} />}
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-          <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
-            <Paperclip className="h-3.5 w-3.5" />
-            Reason given
-          </div>
-          <p className="mt-1 whitespace-pre-wrap">{request.reason}</p>
-        </div>
-        <Field
-          label={isReject ? 'Comment (required)' : 'Comment (optional)'}
-          hint={isReject ? 'Minimum 3 characters — sent to the engineer.' : 'Sent to the engineer with the approval.'}
-        >
-          <textarea
-            className={cn(inputCls, 'min-h-24 resize-y')}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder={isReject ? 'Why is this request being rejected?' : 'Optional note…'}
-          />
-        </Field>
-      </div>
-    </Modal>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

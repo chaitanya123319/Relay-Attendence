@@ -2,6 +2,7 @@
   "expo": {
     "name": "RELAY Attendance",
     "slug": "relay-attendance-mobile",
+    "scheme": "relay-attendance",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -49,7 +50,8 @@
       ],
       "expo-notifications",
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ]
   }
 }

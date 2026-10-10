@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,16 +11,31 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Button, ErrorBox, TextField } from '../components/ui';
 import { API_URL, apiError, NormalizedApiError } from '../lib/api';
+import { googleSignInConfigured, idTokenFromResponse, useGoogleIdTokenRequest } from '../lib/googleAuth';
 import { useAuth } from '../store/AuthContext';
 import { colors, font, radius, spacing } from '../theme';
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<NormalizedApiError | null>(null);
+
+  const { ready: googleReady, response: googleResponse, promptAsync } = useGoogleIdTokenRequest();
+
+  // Google sign-in result → exchange the ID token for a RELAY session.
+  useEffect(() => {
+    const token = idTokenFromResponse(googleResponse);
+    if (!token) return;
+    setGoogleBusy(true);
+    setError(null);
+    signInWithGoogle(token)
+      .catch((e) => setError(apiError(e)))
+      .finally(() => setGoogleBusy(false));
+  }, [googleResponse, signInWithGoogle]);
 
   const submit = async () => {
     if (!identifier.trim() || !password) {
@@ -99,6 +115,37 @@ export default function LoginScreen() {
             disabled={busy}
             style={styles.submit}
           />
+
+          {googleSignInConfigured ? (
+            <View style={styles.googleBlock}>
+              <View style={styles.dividerRow}>
+                <View style={styles.divider} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.divider} />
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setError(null);
+                  void promptAsync();
+                }}
+                disabled={!googleReady || googleBusy}
+                style={({ pressed }) => [
+                  styles.googleBtn,
+                  pressed && styles.googleBtnPressed,
+                  (!googleReady || googleBusy) && styles.googleBtnDisabled,
+                ]}
+              >
+                <Ionicons name="logo-google" size={18} color={colors.text} />
+                <Text style={styles.googleText}>
+                  {googleBusy ? 'Verifying…' : 'Continue with Google'}
+                </Text>
+              </Pressable>
+              <Text style={styles.googleHint}>
+                Use the Google account that matches your RELAY email.
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.hintBox}>
@@ -137,6 +184,25 @@ const styles = StyleSheet.create({
   passwordInput: { paddingRight: 44 },
   eye: { position: 'absolute', right: spacing.md },
   submit: { marginTop: spacing.sm },
+  googleBlock: { gap: spacing.md },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  divider: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textFaint, fontSize: font.tiny, textTransform: 'uppercase', letterSpacing: 1 },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+  },
+  googleBtnPressed: { opacity: 0.85 },
+  googleBtnDisabled: { opacity: 0.5 },
+  googleText: { color: colors.text, fontSize: font.body, fontWeight: '600' },
+  googleHint: { color: colors.textFaint, fontSize: font.tiny, textAlign: 'center' },
   hintBox: {
     marginTop: spacing.xxl,
     backgroundColor: colors.cardAlt,

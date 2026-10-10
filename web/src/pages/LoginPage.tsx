@@ -2,10 +2,16 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { LogIn, ShieldCheck } from 'lucide-react'
-import { useAuth } from '../auth/AuthContext'
-import { getErrorMessage } from '../lib/api'
-import { homeFor } from '../lib/utils'
-import { FullScreenLoader, Spinner, btnPrimary, inputCls, labelCls } from '../components/ui'
+import { useAuth } from '@/auth/AuthContext'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
+import { FullScreenLoader } from '@/components/loading'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { getErrorMessage } from '@/lib/api'
+import { homeFor } from '@/lib/utils'
 
 const DEMO_ACCOUNTS = [
   ['Admin', 'admin@relay.local'],
@@ -15,7 +21,7 @@ const DEMO_ACCOUNTS = [
 ] as const
 
 export default function LoginPage() {
-  const { user, ready, login } = useAuth()
+  const { user, ready, login, loginWithGoogle } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [identifier, setIdentifier] = useState('')
@@ -48,85 +54,105 @@ export default function LoginPage() {
     }
   }
 
+  const onGoogleCredential = async (idToken: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const loggedIn = await loginWithGoogle(idToken)
+      const from = (location.state as { from?: string } | null)?.from
+      navigate(from ?? homeFor(loggedIn.role), { replace: true })
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-900 px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">
-            R
-          </span>
-          <div>
-            <div className="text-lg font-semibold text-white">RELAY Attendance</div>
-            <div className="text-xs text-slate-400">
-              Manager · HR · Admin dashboard for site attendance &amp; leave
-            </div>
+    <div className="page-enter flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/40 p-6">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
+          R
+        </span>
+        <div>
+          <div className="text-lg font-semibold tracking-tight">RELAY Attendance</div>
+          <div className="text-xs text-muted-foreground">
+            Manager · HR · Admin dashboard for site attendance &amp; leave
           </div>
         </div>
+      </div>
 
-        <form
-          onSubmit={(e) => void onSubmit(e)}
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
-        >
-          <h1 className="text-base font-semibold text-slate-900">Sign in</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Use your work email or employee ID.
-          </p>
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-xl">Sign in</CardTitle>
+          <CardDescription>Use your work email or employee ID.</CardDescription>
+        </CardHeader>
 
-          {error && (
-            <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-              {error}
-            </div>
-          )}
+        <CardContent>
+          <form onSubmit={(e) => void onSubmit(e)} className="grid gap-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          <div className="mt-4 space-y-4">
-            <label className="block">
-              <span className={labelCls}>Email or employee ID</span>
-              <input
-                className={inputCls}
+            <div className="grid gap-2">
+              <Label htmlFor="identifier">Email or employee ID</Label>
+              <Input
+                id="identifier"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="you@company.com or EMP-0001"
                 autoComplete="username"
                 autoFocus
               />
-            </label>
-            <label className="block">
-              <span className={labelCls}>Password</span>
-              <input
-                className={inputCls}
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 autoComplete="current-password"
               />
-            </label>
-          </div>
-
-          <button type="submit" className={`${btnPrimary} mt-5 w-full`} disabled={busy}>
-            {busy ? <Spinner /> : <LogIn className="h-4 w-4" />}
-            {busy ? 'Signing in…' : 'Sign in'}
-          </button>
-
-          <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
-            <div className="mb-1.5 flex items-center gap-1.5 font-medium text-slate-600">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Demo accounts (seeded)
             </div>
-            <ul className="space-y-0.5">
-              {DEMO_ACCOUNTS.map(([role, email]) => (
-                <li key={email} className="flex justify-between gap-3">
-                  <span>{role}</span>
-                  <span className="font-mono">{email}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-1.5 border-t border-slate-200 pt-1.5">
-              Password for all demo accounts: <span className="font-mono">Relay@123</span>
-            </div>
+
+            <Button type="submit" className="w-full" disabled={busy}>
+              <LogIn className="size-4" />
+              {busy ? 'Signing in…' : 'Sign in'}
+            </Button>
+          </form>
+
+          <div className="mt-4">
+            <GoogleSignInButton
+              onCredential={(token) => void onGoogleCredential(token)}
+              disabled={busy}
+            />
           </div>
-        </form>
-      </div>
+        </CardContent>
+
+        <CardContent className="border-t pt-4">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <ShieldCheck className="size-3.5" />
+            Demo accounts (seeded)
+          </div>
+          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {DEMO_ACCOUNTS.map(([role, email]) => (
+              <li key={email} className="flex items-baseline justify-between gap-3">
+                <span>{role}</span>
+                <span className="tnum font-mono text-foreground/80">{email}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 border-t pt-2 text-xs text-muted-foreground">
+            Password for all demo accounts:{' '}
+            <span className="font-mono text-foreground/80">Relay@123</span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

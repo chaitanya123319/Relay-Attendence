@@ -1,23 +1,40 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Scale, SlidersHorizontal } from 'lucide-react'
+import { Loader2, Scale, SlidersHorizontal } from 'lucide-react'
+import { toast } from 'sonner'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
-  btnOutline,
-  btnPrimary,
-  cardCls,
-  EmptyState,
-  ErrorBanner,
-  Field,
-  Modal,
-  PageHeader,
-  Spinner,
-  SuccessBanner,
-  inputCls,
-} from '../components/ui'
-import { api, getErrorMessage } from '../lib/api'
-import type { BalanceRow, User } from '../lib/types'
-import { cn } from '../lib/utils'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { api, getErrorMessage } from '@/lib/api'
+import type { BalanceRow, User } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
-function AdjustModal({
+function AdjustDialog({
   row,
   userId,
   year,
@@ -57,29 +74,33 @@ function AdjustModal({
   }
 
   return (
-    <Modal
+    <Dialog
       open
-      onClose={onClose}
-      title={`Adjust ${row.leaveType.name}`}
-      subtitle={`Year ${year} · used ${row.used} · pending ${row.pending} · available ${row.available}`}
-      size="sm"
-      footer={
-        <>
-          <button type="button" className={btnOutline} onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button type="button" className={btnPrimary} onClick={() => void submit()} disabled={busy}>
-            {busy && <Spinner />}
-            Save allocation
-          </button>
-        </>
-      }
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
     >
-      <div className="space-y-3">
-        {error && <ErrorBanner message={error} />}
-        <Field label="Allocated days (0–365)" hint="The change is audited.">
-          <input
-            className={inputCls}
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Adjust {row.leaveType.name}</DialogTitle>
+          <DialogDescription>
+            <span className="tnum">
+              Year {year} · used {row.used} · pending {row.pending} · available {row.available}
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="balance-allocated">Allocated days (0–365)</Label>
+          <Input
+            id="balance-allocated"
+            className="tnum"
             type="number"
             min={0}
             max={365}
@@ -87,20 +108,30 @@ function AdjustModal({
             value={allocated}
             onChange={(e) => setAllocated(e.target.value)}
           />
-        </Field>
-      </div>
-    </Modal>
+          <p className="text-xs text-muted-foreground">The change is audited.</p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={() => void submit()} disabled={busy}>
+            {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
+            Save allocation
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 export default function BalancesPage() {
   const [users, setUsers] = useState<User[]>([])
   const [userId, setUserId] = useState('')
-  const [year, setYear] = useState(new Date().getFullYear())
+  const [year, setYear] = useState(() => new Date().getFullYear())
   const [rows, setRows] = useState<BalanceRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [flash, setFlash] = useState<string | null>(null)
   const [adjustRow, setAdjustRow] = useState<BalanceRow | null>(null)
 
   useEffect(() => {
@@ -144,148 +175,174 @@ export default function BalancesPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Leave balances"
-        subtitle="Allocation, usage and availability per engineer and leave type"
-      />
+      <div className="mb-4">
+        <h1 className="text-lg font-semibold tracking-tight">Leave balances</h1>
+        <p className="text-[13px] text-muted-foreground">
+          Allocation, usage and availability per engineer and leave type
+        </p>
+      </div>
 
-      {flash && (
-        <div className="mb-4">
-          <SuccessBanner message={flash} onDismiss={() => setFlash(null)} />
-        </div>
-      )}
-
-      <div className={cn(cardCls, 'mb-5 p-4')}>
+      <Card className="mb-4 p-4">
         <div className="flex flex-wrap items-end gap-3">
-          <label className="block flex-1 sm:max-w-xs">
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-              Employee
-            </span>
-            <select
-              className={inputCls}
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-            >
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} · {u.employeeId} ({u.role})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-              Year
-            </span>
-            <select
-              className={cn(inputCls, 'w-28')}
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            >
-              {yearOptions
-                .sort((a, b) => a - b)
-                .map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
+          <div className="grid flex-1 gap-1.5 sm:max-w-xs">
+            <Label className="text-muted-foreground">Employee</Label>
+            <Select value={userId} onValueChange={setUserId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {users.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.name} · {user.employeeId} ({user.role})
+                  </SelectItem>
                 ))}
-            </select>
-          </label>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-muted-foreground">Year</Label>
+            <Select value={String(year)} onValueChange={(value) => setYear(Number(value))}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions
+                  .sort((a, b) => a - b)
+                  .map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
           {selectedUser && (
-            <div className="pb-1 text-xs text-slate-400">
+            <p className="pb-1 text-xs text-muted-foreground">
               Available = allocated − used (approved) − pending (reserved)
-            </div>
+            </p>
           )}
         </div>
-      </div>
+      </Card>
 
       {error && (
-        <div className="mb-4">
-          <ErrorBanner message={error} onRetry={() => void load()} />
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Couldn&apos;t load balances</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+          <AlertAction>
+            <Button size="xs" variant="outline" onClick={() => void load()}>
+              Retry
+            </Button>
+          </AlertAction>
+        </Alert>
       )}
 
-      <div className={cn(cardCls, 'overflow-hidden')}>
+      <Card className="overflow-hidden py-0">
         {!userId ? (
-          <EmptyState
-            icon={<Scale className="h-8 w-8" />}
-            title="Pick an employee"
-            message="Select an employee above to view their leave balances."
-          />
+          <div className="flex flex-col items-center justify-center gap-1.5 py-16 text-center">
+            <Scale className="size-6 text-muted-foreground" aria-hidden />
+            <p className="text-sm font-medium">Pick an employee</p>
+            <p className="max-w-md text-[13px] text-muted-foreground">
+              Select an employee above to view their leave balances.
+            </p>
+          </div>
         ) : loading ? (
-          <div className="flex justify-center py-16">
-            <Spinner className="h-6 w-6 text-indigo-600" />
-          </div>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon={<Scale className="h-8 w-8" />}
-            title="No balances"
-            message="No active leave types to show for this year."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">Leave type</th>
-                  <th className="px-4 py-3 text-right">Allocated</th>
-                  <th className="px-4 py-3 text-right">Used</th>
-                  <th className="px-4 py-3 text-right">Pending</th>
-                  <th className="px-4 py-3 text-right">Available</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.leaveType.id} className="border-b border-slate-100 last:border-b-0">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-800">{row.leaveType.name}</div>
-                      <div className="font-mono text-xs text-slate-400">{row.leaveType.code}</div>
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">
-                      {row.allocated}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{row.used}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">
-                      {row.pending}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span
-                        className={cn(
-                          'tabular-nums font-medium',
-                          row.available <= 0 ? 'text-rose-600' : 'text-slate-900',
-                        )}
-                      >
-                        {row.available}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        className={btnOutline}
-                        onClick={() => setAdjustRow(row)}
-                      >
-                        <SlidersHorizontal className="h-4 w-4" />
-                        Adjust
-                      </button>
-                    </td>
-                  </tr>
+          <Table className="text-[13px]">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                  Leave type
+                </TableHead>
+                {['Allocated', 'Used', 'Pending', 'Available', 'Actions'].map((column) => (
+                  <TableHead
+                    key={column}
+                    className="px-3 text-right text-xs uppercase tracking-wide text-muted-foreground"
+                  >
+                    {column}
+                  </TableHead>
                 ))}
-              </tbody>
-            </table>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 4 }).map((_, row) => (
+                <TableRow key={row} className="h-10 hover:bg-transparent">
+                  {Array.from({ length: 6 }).map((__, cell) => (
+                    <TableCell key={cell} className="px-3 py-2">
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-1.5 py-16 text-center">
+            <Scale className="size-6 text-muted-foreground" aria-hidden />
+            <p className="text-sm font-medium">No balances</p>
+            <p className="max-w-md text-[13px] text-muted-foreground">
+              No active leave types to show for this year.
+            </p>
           </div>
+        ) : (
+          <Table className="text-[13px]">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-3 text-xs uppercase tracking-wide text-muted-foreground">
+                  Leave type
+                </TableHead>
+                {['Allocated', 'Used', 'Pending', 'Available', 'Actions'].map((column) => (
+                  <TableHead
+                    key={column}
+                    className="px-3 text-right text-xs uppercase tracking-wide text-muted-foreground"
+                  >
+                    {column}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.leaveType.id} className="h-10">
+                  <TableCell className="px-3 py-2">
+                    <span className="font-medium">{row.leaveType.name}</span>
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">
+                      {row.leaveType.code}
+                    </span>
+                  </TableCell>
+                  <TableCell className="tnum px-3 py-2 text-right">{row.allocated}</TableCell>
+                  <TableCell className="tnum px-3 py-2 text-right">{row.used}</TableCell>
+                  <TableCell className="tnum px-3 py-2 text-right">{row.pending}</TableCell>
+                  <TableCell className="px-3 py-2 text-right">
+                    <span
+                      className={cn(
+                        'tnum font-medium',
+                        row.available <= 0 && 'text-destructive',
+                      )}
+                    >
+                      {row.available}
+                    </span>
+                  </TableCell>
+                  <TableCell className="px-3 py-1.5 text-right">
+                    <Button variant="outline" size="sm" onClick={() => setAdjustRow(row)}>
+                      <SlidersHorizontal className="size-3.5" aria-hidden />
+                      Adjust
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
-      </div>
+      </Card>
 
       {adjustRow && userId && (
-        <AdjustModal
+        <AdjustDialog
           row={adjustRow}
           userId={userId}
           year={year}
           onClose={() => setAdjustRow(null)}
           onSaved={(message) => {
             setAdjustRow(null)
-            setFlash(message)
+            toast.success(message)
             void load()
           }}
         />

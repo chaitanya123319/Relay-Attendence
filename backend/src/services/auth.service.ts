@@ -3,7 +3,8 @@ import { User } from '@prisma/client';
 import { env } from '../config/env';
 import { writeAudit } from '../lib/audit';
 import { randomHex, sha256Hex } from '../lib/crypto';
-import { unauthorized } from '../lib/errors';
+import { AppError, unauthorized } from '../lib/errors';
+import { verifyGoogleIdToken } from '../lib/google';
 import { prisma } from '../lib/prisma';
 
 export interface TokenPair {
@@ -65,6 +66,40 @@ export async function login(identifier: string, password: string, ip?: string) {
 
   const tokens = await issueTokenPair(user);
   await writeAudit({ actorId: user.id, action: 'AUTH_LOGIN', entity: 'User', entityId: user.id, ip });
+  return { ...tokens, user: publicUser(user) };
+}
+
+/**
+ * Google Sign-In: the Google account must already match an ACTIVE RELAY user
+ * (same verified email). No self-registration — provisioning stays with admins.
+ */
+export async function loginWithGoogle(idToken: string, ip?: string) {
+  const identity = await verifyGoogleIdToken(idToken);
+
+  if (!identity.emailVerified) {
+    throw unauthorized('GOOGLE_EMAIL_UNVERIFIED', 'This Google email address is not verified');
+  }
+
+  const user = await prisma.user.findFirst({
+    where: { email: identity.email.trim().toLowerCase() },
+  });
+  if (!user || !user.isActive) {
+    throw new AppError(
+      403,
+      'GOOGLE_NOT_LINKED',
+      'No active RELAY account matches this Google email — ask your administrator to invite you with it.',
+    );
+  }
+
+  const tokens = await issueTokenPair(user);
+  await writeAudit({
+    actorId: user.id,
+    action: 'AUTH_LOGIN_GOOGLE',
+    entity: 'User',
+    entityId: user.id,
+    meta: { email: identity.email },
+    ip,
+  });
   return { ...tokens, user: publicUser(user) };
 }
 

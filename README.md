@@ -75,6 +75,25 @@ docker compose up --build     # from the repository root
 
 Login accepts **email or employee ID**.
 
+## Sign in with Google (optional)
+
+Email/password always works. Google Sign-In is an optional second front door for the **dashboard and the mobile app**: the user proves identity with Google, the backend verifies the Google ID token against Google's JWKS, and — only if the verified email matches an **active RELAY user** — issues the normal RELAY session. There is intentionally **no self-registration** (attendance data stays tied to provisioned employees).
+
+One-time setup (needs a Google account, ~5 minutes):
+
+1. <https://console.cloud.google.com> → create/select a project.
+2. **APIs & Services → OAuth consent screen**: *External*, app name, add your email as a **test user** (Testing mode is fine for internal use).
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - **Web application** — authorized JavaScript origins: `http://localhost:5173`, `http://localhost:4173` (+ production origin). Copy the Client ID.
+   - *(optional, for native phone builds)* **Android** client (package name from `mobile/app.json` + your debug SHA-1) and **iOS** client (bundle ID).
+4. Paste the IDs:
+   - `backend/.env`: `GOOGLE_CLIENT_IDS=<web-id>[,<ios-id>,<android-id>]` → restart the API.
+   - `web/.env.local`: `VITE_GOOGLE_CLIENT_ID=<web-id>`.
+   - `mobile/.env`: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<web-id>` (+ iOS/Android IDs for native builds).
+5. Reload: a "Sign in with Google" button appears only when a client ID is configured.
+
+Security: tokens are verified server-side (signature, issuer, **audience allowlist**, expiry, `email_verified` required); logins audit as `AUTH_LOGIN_GOOGLE`; deactivated users are refused; endpoint returns `503 GOOGLE_DISABLED` until configured. Demo `@relay.local` accounts can't use Google (they aren't Google accounts).
+
 ## Mobile app (site engineers)
 
 ```bash

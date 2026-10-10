@@ -8,6 +8,7 @@ interface AuthContextValue {
   /** True until the stored session has been validated against GET /auth/me. */
   ready: boolean
   login: (identifier: string, password: string) => Promise<User>
+  loginWithGoogle: (idToken: string) => Promise<User>
   logout: () => Promise<void>
 }
 
@@ -53,6 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data.user
   }, [])
 
+  const loginWithGoogle = useCallback(async (idToken: string): Promise<User> => {
+    const { data } = await api.post<LoginResponse>('/auth/google', { idToken })
+    tokenStore.set(data, data.user)
+    setUser(data.user)
+    return data.user
+  }, [])
+
   const logout = useCallback(async (): Promise<void> => {
     const refreshToken = tokenStore.refresh()
     try {
@@ -65,8 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, ready, login, logout }),
-    [user, ready, login, logout],
+    () => ({ user, ready, login, loginWithGoogle, logout }),
+    [user, ready, login, loginWithGoogle, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
